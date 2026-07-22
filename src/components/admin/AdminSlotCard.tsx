@@ -1,7 +1,9 @@
 "use client";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { setAttendance, deleteSlot, restoreSlot, toggleOpenGym } from "@/app/actions/admin";
+import { useState } from "react";
+import { setAttendance, cancelSlots, restoreSlot, toggleOpenGym } from "@/app/actions/admin";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,7 @@ type Slot = { id: string; start_time: string; coach_name: string; capacity: numb
 
 export function AdminSlotCard({ slot }: { slot: Slot }) {
   const [busy, start] = useTransition();
+  const [scopeOpen, setScopeOpen] = useState(false);
 
   const attend = (id: string, status: "attended" | "noshow" | "reserved") =>
     start(async () => {
@@ -18,16 +21,15 @@ export function AdminSlotCard({ slot }: { slot: Slot }) {
       if (r?.error) toast.error(r.error);
     });
 
-  const onDelete = () =>
+  const doCancel = (scope: "one" | "day" | "future") =>
     start(async () => {
       const n = slot.reserved.length + slot.waiting.length;
-      const msg = n > 0
-        ? `예약자 ${n}명이 있는 슬롯입니다. 취소하면 예약도 함께 취소됩니다. 계속할까요?`
-        : "이 슬롯을 취소할까요?";
-      if (!confirm(msg)) return;
-      const r = await deleteSlot(slot.id);
+      const label = { one: "이 수업", day: "이 날 전체", future: "앞으로 계속" }[scope];
+      if (!confirm(`[${label}] 취소합니다.${n > 0 ? ` 이 수업의 예약 ${n}건도 함께 취소됩니다.` : ""} 계속할까요?`)) return;
+      const r = await cancelSlots(slot.id, scope);
       if (r?.error) return void toast.error(r.error);
-      toast.success("슬롯을 취소했습니다.");
+      toast.success(`슬롯 ${r.slots}개 취소${r.templates ? ` · 시간표 ${r.templates}개 폐기` : ""}`);
+      setScopeOpen(false);
     });
 
   const onRestore = () =>
@@ -59,7 +61,7 @@ export function AdminSlotCard({ slot }: { slot: Slot }) {
                 })}>
                 {slot.is_open_gym ? "수업으로" : "자율운동으로"}
               </Button>
-              <Button variant="ghost" size="sm" className="text-red-500" disabled={busy} onClick={onDelete}>
+              <Button variant="ghost" size="sm" className="text-red-500" disabled={busy} onClick={() => setScopeOpen(true)}>
                 취소
               </Button>
             </>
@@ -99,6 +101,39 @@ export function AdminSlotCard({ slot }: { slot: Slot }) {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={scopeOpen} onOpenChange={setScopeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{slot.start_time.slice(0, 5)} 수업 취소</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Button className="w-full justify-start h-auto py-2" variant="outline"
+              disabled={busy} onClick={() => doCancel("one")}>
+              <span className="text-left">
+                <span className="block">이 수업만</span>
+                <span className="block text-xs text-muted-foreground font-normal">이번 한 번만 휴강</span>
+              </span>
+            </Button>
+            <Button className="w-full justify-start h-auto py-2" variant="outline"
+              disabled={busy} onClick={() => doCancel("day")}>
+              <span className="text-left">
+                <span className="block">이 날 전체</span>
+                <span className="block text-xs text-muted-foreground font-normal">그날 모든 수업 취소 (휴관일은 시간표에서 별도 등록)</span>
+              </span>
+            </Button>
+            <Button className="w-full justify-start h-auto py-2" variant="outline"
+              disabled={busy} onClick={() => doCancel("future")}>
+              <span className="text-left">
+                <span className="block">앞으로 계속</span>
+                <span className="block text-xs text-muted-foreground font-normal">
+                  같은 요일·시간의 이후 수업을 모두 취소하고 시간표에서도 폐기
+                </span>
+              </span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

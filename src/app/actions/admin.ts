@@ -337,6 +337,15 @@ export async function deleteSlot(id: string) {
   return { ok: true };
 }
 
+// 취소 범위: 'one'(이 수업만) | 'day'(이 날 전체) | 'future'(앞으로 계속)
+// 'future'는 시간표 항목까지 닫는다 — 안 그러면 다음 생성 때 되살아난다.
+export async function cancelSlots(slotId: string, scope: "one" | "day" | "future") {
+  const { data, error } = await (await db()).rpc("cancel_slots", { p_slot_id: slotId, p_scope: scope });
+  if (error) return { error: error.message };
+  revalidatePath("/admin");
+  return { ok: true, slots: data.slots as number, templates: data.templates as number };
+}
+
 export async function restoreSlot(id: string) {
   const { error } = await (await db()).from("slots").update({ is_cancelled: false }).eq("id", id);
   if (error) return { error: error.message };
