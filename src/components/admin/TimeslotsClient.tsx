@@ -12,7 +12,7 @@ const fmtDay = (d: string) => `${d.slice(5, 7)}.${d.slice(8, 10)} (${WD[new Date
 
 type Person = { id: string; status: string; waiting_order: number | null; name: string; phone: string; isNew: boolean };
 type Slot = {
-  id: string; date: string; start_time: string; coach_name: string; capacity: number; is_open_gym: boolean;
+  id: string; date: string; start_time: string; coach_name: string; capacity: number; is_open_gym: boolean; is_cancelled: boolean;
   reserved: Person[]; waiting: Person[];
 };
 
@@ -25,7 +25,7 @@ export function TimeslotsClient({ today, date: initialDate, monthSlots }: {
   const [coach, setCoach] = useState("");
   useEffect(() => setDate(initialDate), [initialDate]);
 
-  const slotDates = useMemo(() => new Set(monthSlots.map((s) => s.date)), [monthSlots]);
+  const slotDates = useMemo(() => new Set(monthSlots.filter((s) => !s.is_cancelled).map((s) => s.date)), [monthSlots]);
   const booked = useMemo(
     () => new Map(monthSlots.filter((s) => s.reserved.length + s.waiting.length > 0).map((s) => [s.date, "reserved" as const])),
     [monthSlots],
@@ -35,7 +35,8 @@ export function TimeslotsClient({ today, date: initialDate, monthSlots }: {
     [monthSlots],
   );
   const slots = useMemo(
-    () => monthSlots.filter((s) => s.date === date && (!coach || s.coach_name === coach)),
+    () => monthSlots.filter((s) => s.date === date && (!coach || s.coach_name === coach))
+      .sort((a, b) => Number(a.is_cancelled) - Number(b.is_cancelled)),  // 취소된 슬롯은 아래로
     [monthSlots, date, coach],
   );
 

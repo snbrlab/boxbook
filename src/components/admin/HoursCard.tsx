@@ -15,7 +15,7 @@ export function HoursCard({ hours }: { hours: Hour[] }) {
   const byDay = (d: number) => hours.find((h) => h.day_of_week === d);
 
   return (
-    <Card className="max-w-md">
+    <Card>
       <CardHeader><CardTitle>운영시간</CardTitle></CardHeader>
       <CardContent>
         <form

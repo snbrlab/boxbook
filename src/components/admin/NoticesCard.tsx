@@ -14,7 +14,7 @@ export function NoticesCard({ notices }: { notices: Notice[] }) {
   const [busy, start] = useTransition();
 
   return (
-    <Card className="max-w-md">
+    <Card>
       <CardHeader><CardTitle>공지사항</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <form

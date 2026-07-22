@@ -15,7 +15,7 @@ export function AdminsCard({ me, admins }: { me: string | null; admins: Admin[] 
   const [open, setOpen] = useState(false);
 
   return (
-    <Card className="max-w-md">
+    <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>관리자 ({admins.length})</CardTitle>
         <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
