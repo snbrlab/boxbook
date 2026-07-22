@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabaseAdminSession } from "@/lib/supabase/clients";
 import { supabaseService, isAdminUser } from "@/lib/supabase/service";
+import { exportAll } from "@/lib/backup";
 
 async function db() {
   return supabaseAdminSession();
@@ -534,6 +535,18 @@ export async function deleteNotice(id: string) {
   if (error) return { error: error.message };
   revalidatePath("/admin/settings");
   return { ok: true };
+}
+
+// ── 백업 ──────────────────────────────────────────────
+// 파일로 즉시 내려받는다. 자동 백업(Cron)과 별개로, 손으로 한 부 챙겨두는 용도.
+export async function downloadBackup() {
+  await requireAdmin();
+  try {
+    const data = await exportAll(true);
+    return { ok: true as const, json: JSON.stringify(data, null, 2), counts: data.counts };
+  } catch (e) {
+    return { ok: false as const, error: (e as Error).message };
+  }
 }
 
 // ── 설정 ──────────────────────────────────────────────

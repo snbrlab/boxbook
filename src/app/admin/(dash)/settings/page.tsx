@@ -3,6 +3,7 @@ import { AdminsCard } from "@/components/admin/AdminsCard";
 import { HoursCard } from "@/components/admin/HoursCard";
 import { NoticesCard } from "@/components/admin/NoticesCard";
 import { PurgeCard } from "@/components/admin/PurgeCard";
+import { BackupCard } from "@/components/admin/BackupCard";
 import { saveSettings } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ export default async function SettingsPage() {
       <NoticesCard notices={notices} />
       <HoursCard hours={hours} />
       <AdminsCard me={me} admins={admins} />
+      <BackupCard />
       <PurgeCard />
     </div>
   );

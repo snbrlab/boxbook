@@ -97,6 +97,16 @@ psql -d gym -f supabase/tests/rpc_checklist.sql       # PASS/FAIL 출력
 - 테마: 라이트/다크 **토글**
 - 관리자 인증: Supabase Auth **이메일 로그인**
 
+## 백업
+
+- **수동** — 관리자 설정에 [백업 파일 내려받기]. 전 테이블을 JSON 한 파일로. 설정 불필요.
+- **자동** — `/api/cron/backup`이 매일 비공개 GitHub 저장소에 `backups/YYYY-MM-DD.json`으로 커밋.
+  Vercel env에 `BACKUP_GITHUB_TOKEN`(repo 권한 PAT), `BACKUP_GITHUB_REPO`(**반드시 private**)를 넣으면 동작한다.
+  미설정 시 조용히 건너뛴다. 서명 이미지는 기본 제외(`BACKUP_INCLUDE_SIGNATURES=true`로 포함).
+
+> 백업 파일에는 회원 이름·전화번호가 들어간다. 저장소는 반드시 비공개로 두고,
+> 내려받은 파일도 아무 데나 두지 않는다.
+
 ## 문서
 
 - [docs/관장님_한장요약.md](docs/관장님_한장요약.md) — A4 한 장. 매일 쓰는 것만
