@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { reserveSlot, cancelReservation, checkIn, logoutMember } from "@/app/actions/member";
 import type { SlotView, MyReservation } from "@/lib/member-data";
 import { MonthCalendar } from "@/components/MonthCalendar";
+import { BulkReserveDialog } from "@/components/BulkReserveDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,6 +35,7 @@ export default function DashboardClient(p: Props) {
   const [busy, start] = useTransition();
   // 날짜 전환은 서버 왕복 없이 로컬 상태로. 달 이동만 서버에서 새로 받는다.
   const [date, setDate] = useState(p.date);
+  const [bulkOpen, setBulkOpen] = useState(false);
   useEffect(() => setDate(p.date), [p.date]);
 
   const slotDates = useMemo(() => new Set(p.monthSlots.map((s) => s.date)), [p.monthSlots]);
@@ -164,6 +166,10 @@ export default function DashboardClient(p: Props) {
             allowPast
           />
 
+          <Button variant="outline" size="sm" className="w-full" onClick={() => setBulkOpen(true)}>
+            여러 수업 한 번에 신청
+          </Button>
+
           <div className="flex items-center justify-between pt-1">
             <span className="text-sm font-semibold">{fmtDay(date)}</span>
             {p.settings.penalty_enabled && !isPast && (
@@ -259,6 +265,7 @@ export default function DashboardClient(p: Props) {
           ))}
         </TabsContent>
       </Tabs>
+      <BulkReserveDialog monthSlots={p.monthSlots} today={p.today} open={bulkOpen} onClose={() => setBulkOpen(false)} />
     </main>
   );
 }

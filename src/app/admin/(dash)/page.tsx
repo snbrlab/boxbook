@@ -1,4 +1,4 @@
-import { adminMonthSlots } from "@/lib/admin-data";
+import { adminMonthSlots, adminMemberOptions } from "@/lib/admin-data";
 import { todayKST } from "@/lib/kst";
 import { TimeslotsClient } from "@/components/admin/TimeslotsClient";
 
@@ -14,7 +14,7 @@ export default async function AdminTimeslots({ searchParams }: { searchParams: P
   const today = todayKST();
   const date = (await searchParams).date ?? today;
   const { from, to } = monthRange(date);
-  const monthSlots = await adminMonthSlots(from, to);
+  const [monthSlots, members] = await Promise.all([adminMonthSlots(from, to), adminMemberOptions()]);
 
-  return <TimeslotsClient today={today} date={date} monthSlots={monthSlots} />;
+  return <TimeslotsClient today={today} date={date} monthSlots={monthSlots} members={members} />;
 }

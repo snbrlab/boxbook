@@ -59,6 +59,23 @@ export async function reserveSlot(slotId: string): Promise<Result> {
   return { ok: true, status: data.status, waiting_order: data.waiting_order };
 }
 
+// 여러 수업을 한 번에 신청. 각 건은 reserve_slot을 거치므로 규칙은 그대로 적용되고,
+// 일부가 걸려도 나머지는 잡힌다.
+export async function bulkReserve(slotIds: string[]) {
+  const s = await getMemberSession();
+  if (!s) return { ok: false as const, error: "로그인이 필요합니다." };
+  const supabase = supabaseAsMember(s.jwt);
+  const { data, error } = await supabase.rpc("bulk_reserve", { p_slot_ids: slotIds });
+  if (error) return { ok: false as const, error: rpcMessage(error) };
+  revalidatePath("/");
+  return {
+    ok: true as const,
+    reserved: data.reserved as number,
+    waiting: data.waiting as number,
+    failed: (data.failed ?? []) as { date: string; time: string; reason: string }[],
+  };
+}
+
 // 셀프 출석. 수업 당일 시작 1시간 전부터 가능 (판정은 RPC가 KST로).
 export async function checkIn(reservationId: string): Promise<Result> {
   const s = await getMemberSession();

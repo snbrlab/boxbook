@@ -185,6 +185,24 @@ export async function setAttendance(reservationId: string, status: "attended" | 
   return { ok: true };
 }
 
+// 관리자가 회원 대신 예약. force=true면 1일1회·주간횟수를 건너뛴다(보강).
+export async function adminReserve(slotId: string, memberId: string, force: boolean) {
+  const { data, error } = await (await db()).rpc("admin_reserve_slot", {
+    p_slot_id: slotId, p_member_id: memberId, p_force: force,
+  });
+  if (error) {
+    const msg = error.message;
+    if (msg.includes("NO_ACTIVE_MEMBERSHIP")) return { error: "이 날짜를 덮는 이용권이 없습니다. 이용권을 먼저 조정하세요." };
+    if (msg.includes("DAILY_LIMIT")) return { error: "같은 날 이미 예약이 있습니다. 보강으로 넣으려면 [보강]을 체크하세요." };
+    if (msg.includes("WEEKLY_LIMIT")) return { error: "이번 주 횟수를 모두 썼습니다. 보강으로 넣으려면 [보강]을 체크하세요." };
+    if (msg.includes("23505")) return { error: "이미 이 수업에 예약되어 있습니다." };
+    if (msg.includes("MEMBER_INACTIVE")) return { error: "비활성화된 회원입니다." };
+    return { error: msg };
+  }
+  revalidatePath("/admin");
+  return { ok: true, status: data.status as string, waiting_order: data.waiting_order as number | undefined };
+}
+
 // ── 주간 시간표 (slot_templates) ────────────────────────
 // 시간표 등록은 코치 단위로 다룬다. 같은 시간대에 코치가 둘 이상일 수 있으므로
 // 중복 판정 키는 (요일, 시간, 코치)다.

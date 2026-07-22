@@ -17,8 +17,8 @@ type Slot = {
 };
 
 // 날짜 전환은 로컬 상태로 처리(서버 왕복 없음). 달 이동만 서버에서 새로 받는다.
-export function TimeslotsClient({ today, date: initialDate, monthSlots }: {
-  today: string; date: string; monthSlots: Slot[];
+export function TimeslotsClient({ today, date: initialDate, monthSlots, members }: {
+  today: string; date: string; monthSlots: Slot[]; members: { id: string; name: string; phone: string }[];
 }) {
   const router = useRouter();
   const [date, setDate] = useState(initialDate);
@@ -74,7 +74,7 @@ export function TimeslotsClient({ today, date: initialDate, monthSlots }: {
         <p className="text-sm text-muted-foreground py-8 text-center">이 날은 생성된 슬롯이 없습니다.</p>
       )}
       {slots.map((s) => (
-        <AdminSlotCard key={s.id} slot={s} />
+        <AdminSlotCard key={s.id} slot={s} members={members} />
       ))}
     </div>
   );

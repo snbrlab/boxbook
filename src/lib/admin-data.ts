@@ -38,6 +38,13 @@ export async function adminMonthSlots(from: string, to: string) {
   });
 }
 
+// 슬롯에 회원을 직접 넣을 때 쓰는 가벼운 목록
+export async function adminMemberOptions() {
+  const sb = await supabaseAdminSession();
+  const { data } = await sb.from("members").select("id, name, phone").eq("is_active", true).order("name");
+  return (data ?? []) as { id: string; name: string; phone: string }[];
+}
+
 export async function adminMembers() {
   const sb = await supabaseAdminSession();
   const today = todayKST();

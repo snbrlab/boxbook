@@ -5,6 +5,7 @@ import { useState } from "react";
 import { setAttendance, cancelSlots, restoreSlot, toggleOpenGym } from "@/app/actions/admin";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SlotEditDialog } from "@/components/admin/SlotEditDialog";
+import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,11 @@ import { Button } from "@/components/ui/button";
 type Person = { id: string; status: string; waiting_order: number | null; name: string; phone: string; isNew: boolean };
 type Slot = { id: string; start_time: string; coach_name: string; capacity: number; is_open_gym: boolean; is_cancelled: boolean; reserved: Person[]; waiting: Person[] };
 
-export function AdminSlotCard({ slot }: { slot: Slot }) {
+export function AdminSlotCard({ slot, members }: { slot: Slot; members: { id: string; name: string; phone: string }[] }) {
   const [busy, start] = useTransition();
   const [scopeOpen, setScopeOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const attend = (id: string, status: "attended" | "noshow" | "reserved") =>
     start(async () => {
@@ -63,6 +65,7 @@ export function AdminSlotCard({ slot }: { slot: Slot }) {
                 })}>
                 {slot.is_open_gym ? "수업으로" : "자율운동으로"}
               </Button>
+              <Button variant="ghost" size="sm" disabled={busy} onClick={() => setAddOpen(true)}>회원 추가</Button>
               <Button variant="ghost" size="sm" disabled={busy} onClick={() => setEditOpen(true)}>수정</Button>
               <Button variant="ghost" size="sm" className="text-red-500" disabled={busy} onClick={() => setScopeOpen(true)}>
                 취소
@@ -106,6 +109,7 @@ export function AdminSlotCard({ slot }: { slot: Slot }) {
       </CardContent>
 
       <SlotEditDialog slot={slot} open={editOpen} onClose={() => setEditOpen(false)} />
+      <AddMemberDialog slotId={slot.id} members={members} open={addOpen} onClose={() => setAddOpen(false)} />
 
       <Dialog open={scopeOpen} onOpenChange={setScopeOpen}>
         <DialogContent>
