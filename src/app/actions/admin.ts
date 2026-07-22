@@ -48,12 +48,62 @@ export async function adminLogout() {
 }
 
 // ── 회원 ──────────────────────────────────────────────
+// 회원 등록 = 회원 + (선택)이용권 + (선택)규정동의 서명을 한 번에.
+// 이용권 인서트가 실패하면 회원도 되돌린다 — 이용권 없는 반쪽 회원이 남으면 예약이 안 돼 헷갈린다.
 export async function createMember(form: FormData) {
   const sb = await db();
-  const { error } = await sb.from("members").insert({
-    name: String(form.get("name")).trim(),
-    phone: String(form.get("phone")).trim(),
-  });
+  const signature = String(form.get("signature") ?? "");
+
+  const { data: member, error } = await sb
+    .from("members")
+    .insert({
+      name: String(form.get("name")).trim(),
+      phone: String(form.get("phone")).trim(),
+      signature: signature || null,
+      agreed_at: signature ? new Date().toISOString() : null,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  const start_date = String(form.get("start_date") ?? "");
+  const end_date = String(form.get("end_date") ?? "");
+  if (start_date && end_date) {
+    const { error: mhErr } = await sb.from("membership_histories").insert({
+      member_id: member.id,
+      start_date,
+      end_date,
+      weekly_limit: Number(form.get("weekly_limit")),
+      payment_memo: String(form.get("payment_memo") ?? "") || null,
+    });
+    if (mhErr) {
+      await sb.from("members").delete().eq("id", member.id);
+      return { error: `이용권 등록 실패: ${mhErr.message}` };
+    }
+  }
+  revalidatePath("/admin/members");
+  return { ok: true };
+}
+
+// 이름·전화번호 수정 (번호 바뀌면 로그인도 새 번호 기준이 된다)
+export async function updateMember(form: FormData) {
+  const sb = await db();
+  const { error } = await sb
+    .from("members")
+    .update({ name: String(form.get("name")).trim(), phone: String(form.get("phone")).trim() })
+    .eq("id", String(form.get("member_id")));
+  if (error) return { error: error.message };
+  revalidatePath("/admin/members");
+  return { ok: true };
+}
+
+// 나중에 서명을 다시 받는 경우 (등록 때 안 받았거나 규정이 바뀐 경우)
+export async function saveSignature(memberId: string, signature: string) {
+  const sb = await db();
+  const { error } = await sb
+    .from("members")
+    .update({ signature, agreed_at: new Date().toISOString() })
+    .eq("id", memberId);
   if (error) return { error: error.message };
   revalidatePath("/admin/members");
   return { ok: true };
@@ -202,6 +252,7 @@ export async function saveSettings(form: FormData) {
     penalty_enabled: form.get("penalty_enabled") === "on",
     penalty_hours: Number(form.get("penalty_hours")),
     noshow_counts: form.get("noshow_counts") === "on",
+    rules_text: String(form.get("rules_text") ?? "") || null,
   }).eq("id", 1);
   revalidatePath("/admin/settings");
 }

@@ -35,6 +35,19 @@ export default async function SettingsPage() {
             <input type="checkbox" name="noshow_counts" defaultChecked={s.noshow_counts} className="h-5 w-5" />
           </label>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="rt">체육관 규정</Label>
+            <textarea
+              id="rt"
+              name="rules_text"
+              rows={8}
+              defaultValue={s.rules_text ?? ""}
+              placeholder={"예)\n1. 수업 10분 전까지 입장해 주세요.\n2. 무단 결석이 반복되면 예약이 제한될 수 있습니다."}
+              className="w-full rounded-lg border bg-transparent p-2 text-sm"
+            />
+            <p className="text-xs text-muted-foreground">회원 등록 화면에 표시되고, 서명을 받아 보관합니다.</p>
+          </div>
+
           <Button type="submit">저장</Button>
         </form>
       </CardContent>

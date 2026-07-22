@@ -36,7 +36,7 @@ export async function adminMembers() {
   const today = todayKST();
   const { data } = await sb
     .from("members")
-    .select("id, name, phone, is_active, created_at, membership_histories(start_date, end_date, weekly_limit, payment_memo)")
+    .select("id, name, phone, is_active, created_at, signature, agreed_at, membership_histories(start_date, end_date, weekly_limit, payment_memo)")
     .order("created_at", { ascending: false });
   return (data ?? []).map((m: any) => {
     const hist = (m.membership_histories ?? []).sort((a: any, b: any) => (a.end_date < b.end_date ? 1 : -1));
@@ -46,6 +46,8 @@ export async function adminMembers() {
       name: m.name,
       phone: m.phone,
       is_active: m.is_active,
+      signature: m.signature ?? null,
+      agreed_at: m.agreed_at ?? null,
       isNew: daysBetween(m.created_at.slice(0, 10), today) <= 7,
       active,
       daysLeft: active ? daysBetween(today, active.end_date) : null,
@@ -84,5 +86,10 @@ export async function adminList() {
 export async function adminSettings() {
   const sb = await supabaseAdminSession();
   const { data } = await sb.from("gym_settings").select("*").eq("id", 1).single();
-  return data as { penalty_enabled: boolean; penalty_hours: number; noshow_counts: boolean };
+  return data as {
+    penalty_enabled: boolean;
+    penalty_hours: number;
+    noshow_counts: boolean;
+    rules_text: string | null;
+  };
 }
