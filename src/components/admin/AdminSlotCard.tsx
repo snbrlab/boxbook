@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { setAttendance, cancelSlots, restoreSlot, toggleOpenGym } from "@/app/actions/admin";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SlotEditDialog } from "@/components/admin/SlotEditDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ type Slot = { id: string; start_time: string; coach_name: string; capacity: numb
 export function AdminSlotCard({ slot }: { slot: Slot }) {
   const [busy, start] = useTransition();
   const [scopeOpen, setScopeOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const attend = (id: string, status: "attended" | "noshow" | "reserved") =>
     start(async () => {
@@ -61,6 +63,7 @@ export function AdminSlotCard({ slot }: { slot: Slot }) {
                 })}>
                 {slot.is_open_gym ? "수업으로" : "자율운동으로"}
               </Button>
+              <Button variant="ghost" size="sm" disabled={busy} onClick={() => setEditOpen(true)}>수정</Button>
               <Button variant="ghost" size="sm" className="text-red-500" disabled={busy} onClick={() => setScopeOpen(true)}>
                 취소
               </Button>
@@ -101,6 +104,8 @@ export function AdminSlotCard({ slot }: { slot: Slot }) {
           </div>
         )}
       </CardContent>
+
+      <SlotEditDialog slot={slot} open={editOpen} onClose={() => setEditOpen(false)} />
 
       <Dialog open={scopeOpen} onOpenChange={setScopeOpen}>
         <DialogContent>

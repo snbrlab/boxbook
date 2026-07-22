@@ -9,6 +9,7 @@ const NAV = [
   { href: "/admin/schedule", label: "주간 시간표" },
   { href: "/admin/stats", label: "대시보드" },
   { href: "/admin/settings", label: "설정" },
+  { href: "/admin/help", label: "도움말" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

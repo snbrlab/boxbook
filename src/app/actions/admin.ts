@@ -312,9 +312,38 @@ export async function removeClosedDate(date: string) {
 }
 
 // ── 개별 슬롯 예외 ──────────────────────────────────────
+// 이미 생성된 슬롯의 정원·코치·시간 수정 (그 슬롯 하나만. 시간표는 안 건드린다)
 export async function updateSlot(id: string, patch: { coach_name?: string; capacity?: number; start_time?: string }) {
-  await (await db()).from("slots").update(patch).eq("id", id);
+  const sb = await db();
+  if (patch.capacity !== undefined) {
+    // 정원을 줄일 때 이미 예약이 더 많으면 막는다 — 초과 상태가 되면 정원 개념이 무너진다
+    const { count } = await sb.from("reservations")
+      .select("id", { count: "exact", head: true })
+      .eq("slot_id", id).in("status", ["reserved", "attended", "noshow"]);
+    if ((count ?? 0) > patch.capacity) {
+      return { error: `이미 예약이 ${count}명입니다. 정원을 그보다 작게 줄일 수 없습니다.` };
+    }
+  }
+  const { error } = await sb.from("slots").update(patch).eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/admin");
+  return { ok: true };
+}
+
+// 기간 내 슬롯 일괄 취소 (전달 전 초기화용). 예약도 함께 취소된다.
+export async function purgeSlots(from: string, to: string) {
+  await requireAdmin();
+  const svc = supabaseService();
+  const { data: ids, error } = await svc.from("slots").select("id").gte("date", from).lte("date", to);
+  if (error) return { error: error.message };
+  const list = (ids ?? []).map((r: any) => r.id);
+  if (list.length === 0) return { ok: true, slots: 0 };
+
+  // 이 경로는 되돌릴 수 없다. 취소 표시가 아니라 실제 삭제 (cascade로 예약도 삭제).
+  const { error: delErr } = await svc.from("slots").delete().in("id", list);
+  if (delErr) return { error: delErr.message };
+  revalidatePath("/admin");
+  return { ok: true, slots: list.length };
 }
 // 수업 ↔ 자율운동 전환. 예약 규칙은 동일하게 적용되므로 표시만 달라진다.
 export async function toggleOpenGym(id: string, is_open_gym: boolean) {
