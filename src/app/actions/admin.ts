@@ -127,6 +127,43 @@ export async function generateSlots(from: string, to: string) {
   return error ? { error: error.message } : { inserted: data };
 }
 
+// ── 관리자 관리 ────────────────────────────────────────
+// Auth 유저 생성 + admins 인서트를 함께 해야 하므로 service_role 사용. 반드시 requireAdmin 뒤에.
+export async function createAdmin(form: FormData) {
+  await requireAdmin();
+  const email = String(form.get("email") ?? "").trim();
+  const password = String(form.get("password") ?? "");
+  if (!email || password.length < 8) return { error: "이메일과 8자 이상 비밀번호를 입력하세요." };
+
+  const svc = supabaseService();
+  // email_confirm: true → 확인 메일 없이 바로 로그인 가능 (무료 티어 SMTP 의존 제거)
+  const { data, error } = await svc.auth.admin.createUser({ email, password, email_confirm: true });
+  if (error || !data.user) return { error: error?.message ?? "계정 생성에 실패했습니다." };
+
+  const { error: insErr } = await svc.from("admins").insert({ id: data.user.id, email });
+  if (insErr) {
+    // admins 등록 실패 시 방금 만든 Auth 유저를 되돌린다 (고아 계정 방지)
+    await svc.auth.admin.deleteUser(data.user.id);
+    return { error: insErr.message };
+  }
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+export async function removeAdmin(id: string) {
+  const me = await requireAdmin();
+  if (id === me) return { error: "본인 계정은 삭제할 수 없습니다." };
+
+  const svc = supabaseService();
+  const { count } = await svc.from("admins").select("id", { count: "exact", head: true });
+  if ((count ?? 0) <= 1) return { error: "마지막 관리자는 삭제할 수 없습니다." };
+
+  await svc.from("admins").delete().eq("id", id);
+  await svc.auth.admin.deleteUser(id);
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
 // ── 설정 ──────────────────────────────────────────────
 export async function saveSettings(form: FormData) {
   const sb = await db();

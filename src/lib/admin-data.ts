@@ -71,6 +71,16 @@ export async function adminClosedDates() {
   return data ?? [];
 }
 
+// 관리자 목록 + 현재 로그인한 관리자 id (본인 삭제 버튼 숨기기용)
+export async function adminList() {
+  const sb = await supabaseAdminSession();
+  const [{ data: { user } }, { data }] = await Promise.all([
+    sb.auth.getUser(),
+    sb.from("admins").select("id, email, created_at").order("created_at"),
+  ]);
+  return { me: user?.id ?? null, admins: (data ?? []) as { id: string; email: string; created_at: string }[] };
+}
+
 export async function adminSettings() {
   const sb = await supabaseAdminSession();
   const { data } = await sb.from("gym_settings").select("*").eq("id", 1).single();

@@ -1,4 +1,5 @@
-import { adminSettings } from "@/lib/admin-data";
+import { adminSettings, adminList } from "@/lib/admin-data";
+import { AdminsCard } from "@/components/admin/AdminsCard";
 import { saveSettings } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function SettingsPage() {
-  const s = await adminSettings();
+  const [s, { me, admins }] = await Promise.all([adminSettings(), adminList()]);
   return (
+    <div className="space-y-4">
     <Card className="max-w-md">
       <CardHeader><CardTitle>설정</CardTitle></CardHeader>
       <CardContent>
@@ -37,5 +39,8 @@ export default async function SettingsPage() {
         </form>
       </CardContent>
     </Card>
+
+    <AdminsCard me={me} admins={admins} />
+    </div>
   );
 }
