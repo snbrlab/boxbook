@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { WD } from "@/lib/dow";
 import { useRouter } from "next/navigation";
 import { MonthCalendar } from "@/components/MonthCalendar";
+import { Button } from "@/components/ui/button";
 import { AdminSlotCard } from "@/components/admin/AdminSlotCard";
 import { GenerateButton } from "@/components/admin/GenerateButton";
 
@@ -21,6 +22,7 @@ export function TimeslotsClient({ today, date: initialDate, monthSlots }: {
 }) {
   const router = useRouter();
   const [date, setDate] = useState(initialDate);
+  const [coach, setCoach] = useState("");
   useEffect(() => setDate(initialDate), [initialDate]);
 
   const slotDates = useMemo(() => new Set(monthSlots.map((s) => s.date)), [monthSlots]);
@@ -28,7 +30,14 @@ export function TimeslotsClient({ today, date: initialDate, monthSlots }: {
     () => new Map(monthSlots.filter((s) => s.reserved.length + s.waiting.length > 0).map((s) => [s.date, "reserved" as const])),
     [monthSlots],
   );
-  const slots = useMemo(() => monthSlots.filter((s) => s.date === date), [monthSlots, date]);
+  const coaches = useMemo(
+    () => [...new Set(monthSlots.filter((s) => !s.is_open_gym).map((s) => s.coach_name))].sort(),
+    [monthSlots],
+  );
+  const slots = useMemo(
+    () => monthSlots.filter((s) => s.date === date && (!coach || s.coach_name === coach)),
+    [monthSlots, date, coach],
+  );
 
   return (
     <div className="space-y-4">
@@ -47,6 +56,16 @@ export function TimeslotsClient({ today, date: initialDate, monthSlots }: {
         allowPast
         legend={{ filled: "예약 있음", hollow: "" }}
       />
+
+      {coaches.length > 1 && (
+        <div className="flex flex-wrap gap-1 items-center">
+          <span className="text-xs text-muted-foreground mr-1">코치별 보기</span>
+          <Button size="sm" variant={coach === "" ? "default" : "ghost"} onClick={() => setCoach("")}>전체</Button>
+          {coaches.map((c) => (
+            <Button key={c} size="sm" variant={coach === c ? "default" : "ghost"} onClick={() => setCoach(c)}>{c}</Button>
+          ))}
+        </div>
+      )}
 
       <div className="text-sm font-semibold pt-1">{fmtDay(date)}</div>
 

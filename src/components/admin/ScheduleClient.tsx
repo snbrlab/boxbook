@@ -20,6 +20,40 @@ export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed
   const [days, setDays] = useState<number[]>([1]);
   const [hours, setHours] = useState<number[]>([]);
   const [editing, setEditing] = useState<Tpl | null>(null);
+  const [coach, setCoach] = useState("");
+  const [capacity, setCapacity] = useState(6);
+  const [filter, setFilter] = useState<string>("");   // 코치별 보기 ("" = 전체)
+
+  const coaches = [...new Set(templates.map((t) => t.coach_name))].sort();
+  const shown = filter ? templates.filter((t) => t.coach_name === filter) : templates;
+
+  // 선택한 코치+요일의 현재 시간대 (sync 시 무엇이 사라지는지 보여주기 위함)
+  const currentTimes = coach
+    ? [...new Set(templates.filter((t) => t.coach_name === coach && days.includes(t.day_of_week))
+        .map((t) => t.start_time.slice(0, 5)))].sort()
+    : [];
+  const picked = hours.map((h) => `${String(h).padStart(2, "0")}:00`);
+  const willRemove = currentTimes.filter((t) => !picked.includes(t));
+
+  const submit = (mode: "add" | "sync") => {
+    const fd = new FormData();
+    days.forEach((d) => fd.append("day_of_week", String(d)));
+    picked.forEach((t) => fd.append("start_time", t));
+    fd.set("coach_name", coach);
+    fd.set("capacity", String(capacity));
+    fd.set("mode", mode);
+    start(async () => {
+      const r = await addTemplate(fd);
+      if (r?.error) return void toast.error(r.error);
+      const parts = [];
+      if (r.added) parts.push(`${r.added}개 추가`);
+      if (r.replaced) parts.push(`${r.replaced}개 변경`);
+      if (r.removed) parts.push(`${r.removed}개 폐기`);
+      if (r.unchanged) parts.push(`${r.unchanged}개 그대로`);
+      toast.success(parts.join(" · ") || "변경 없음");
+      setHours([]);
+    });
+  };
   const toggleDay = (i: number) =>
     setDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i].sort()));
   const toggleHour = (h: number) =>
@@ -35,61 +69,96 @@ export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed
       </div>
 
       <Card>
-        <CardHeader className="py-3"><CardTitle className="text-base">항목 추가</CardTitle></CardHeader>
-        <CardContent>
-          <form
-            action={(fd) => start(async () => {
-              const r = await addTemplate(fd);
-              if (r?.error) return void toast.error(r.error);
-              toast.success(`${r.count}개 추가${r.skipped ? ` (${r.skipped}개는 이미 등록됨)` : ""}`);
-              setHours([]);
-            })}
-            className="flex flex-wrap gap-2 items-end"
-          >
+        <CardHeader className="py-3"><CardTitle className="text-base">시간표 등록 / 일괄 변경</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-3 items-end">
             <div className="space-y-1">
-              <Label className="text-xs">요일 (여러 개 선택 가능)</Label>
-              <div className="flex gap-1">
-                {DOW_ORDER.map((i) => (
-                  <button type="button" key={i} onClick={() => toggleDay(i)}
-                    aria-pressed={days.includes(i)}
-                    className={`w-8 h-9 rounded text-sm border ${days.includes(i) ? "bg-primary text-primary-foreground border-primary" : dowClass(i)}`}>
-                    {WD[i]}
-                  </button>
-                ))}
-              </div>
-              {/* 선택한 요일마다 hidden input → 서버에서 getAll로 받는다 */}
-              {days.map((d) => (
-                <input key={d} type="hidden" name="day_of_week" value={d} />
+              <Label className="text-xs">코치</Label>
+              <Input value={coach} onChange={(e) => setCoach(e.target.value)}
+                list="coach-list" placeholder="이름" className="w-28" />
+              <datalist id="coach-list">
+                {coaches.map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">정원</Label>
+              <Input type="number" min={1} value={capacity}
+                onChange={(e) => setCapacity(Number(e.target.value))} className="w-20" />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">요일</Label>
+            <div className="flex gap-1">
+              {DOW_ORDER.map((i) => (
+                <button type="button" key={i} onClick={() => toggleDay(i)}
+                  aria-pressed={days.includes(i)}
+                  className={`w-9 h-9 rounded text-sm border ${days.includes(i) ? "bg-primary text-primary-foreground border-primary" : dowClass(i)}`}>
+                  {WD[i]}
+                </button>
               ))}
             </div>
-            <div className="space-y-1 w-full">
-              <Label className="text-xs">시간 (정시, 여러 개 선택 가능)</Label>
-              <div className="flex flex-wrap gap-1">
-                {HOURS.map((h) => (
-                  <button type="button" key={h} onClick={() => toggleHour(h)}
-                    aria-pressed={hours.includes(h)}
-                    className={`w-11 h-8 rounded text-xs border ${hours.includes(h) ? "bg-primary text-primary-foreground border-primary" : ""}`}>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">시간 (정시)</Label>
+            <div className="flex flex-wrap gap-1">
+              {HOURS.map((h) => {
+                const on = hours.includes(h);
+                const existing = currentTimes.includes(`${String(h).padStart(2, "0")}:00`);
+                return (
+                  <button type="button" key={h} onClick={() => toggleHour(h)} aria-pressed={on}
+                    className={`w-11 h-8 rounded text-xs border ${
+                      on ? "bg-primary text-primary-foreground border-primary"
+                         : existing ? "border-primary/50 text-primary" : ""}`}>
                     {String(h).padStart(2, "0")}:00
                   </button>
-                ))}
-              </div>
-              {hours.map((h) => (
-                <input key={h} type="hidden" name="start_time" value={`${String(h).padStart(2, "0")}:00`} />
-              ))}
+                );
+              })}
             </div>
-            <div className="space-y-1"><Label className="text-xs">코치</Label><Input name="coach_name" required className="w-24" /></div>
-            <div className="space-y-1"><Label className="text-xs">정원</Label><Input type="number" name="capacity" min={1} defaultValue={6} required className="w-20" /></div>
-            <Button type="submit" disabled={busy || days.length === 0 || hours.length === 0}>
-              추가{days.length * hours.length > 1 ? ` (${days.length}요일 × ${hours.length}시간 = ${days.length * hours.length}개)` : ""}
+            {coach && currentTimes.length > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                테두리 표시 = {coach} 코치가 선택 요일에 현재 운영 중인 시간
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 items-center">
+            <Button type="button" disabled={busy || !coach || days.length === 0 || hours.length === 0}
+              onClick={() => submit("add")}>
+              추가/변경
             </Button>
-          </form>
+            <Button type="button" variant="outline"
+              disabled={busy || !coach || days.length === 0}
+              onClick={() => {
+                if (willRemove.length > 0 &&
+                    !confirm(`${coach} 코치의 선택 요일에서 ${willRemove.join(", ")} 시간대가 폐기됩니다. 계속할까요?`)) return;
+                submit("sync");
+              }}>
+              이 시간표로 맞추기{willRemove.length > 0 ? ` (${willRemove.length}개 폐기)` : ""}
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            <b>추가/변경</b>은 선택한 조합만 반영합니다. <b>맞추기</b>는 선택 요일에서 이 코치의 시간표를
+            선택한 시간들과 일치시킵니다(선택 안 한 시간대는 폐기). 이미 생성된 슬롯은 바뀌지 않습니다.
+          </p>
         </CardContent>
       </Card>
+
+      {coaches.length > 1 && (
+        <div className="flex flex-wrap gap-1 items-center">
+          <span className="text-xs text-muted-foreground mr-1">코치별 보기</span>
+          <Button size="sm" variant={filter === "" ? "default" : "ghost"} onClick={() => setFilter("")}>전체</Button>
+          {coaches.map((c) => (
+            <Button key={c} size="sm" variant={filter === c ? "default" : "ghost"} onClick={() => setFilter(c)}>{c}</Button>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {DOW_ORDER.map((i) => {
           const w = WD[i];
-          const items = templates.filter((t) => t.day_of_week === i);
+          const items = shown.filter((t) => t.day_of_week === i);
           return (
             <Card key={i}>
               <CardHeader className="py-2"><CardTitle className="text-sm">{w}요일</CardTitle></CardHeader>

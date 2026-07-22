@@ -186,38 +186,80 @@ export async function setAttendance(reservationId: string, status: "attended" | 
 }
 
 // ── 주간 시간표 (slot_templates) ────────────────────────
-// 요일 × 시간 다중 선택: 조합 수만큼 로우를 만든다 (월/수/금 × 19시/20시를 한 번에)
-// 이미 활성인 조합은 건너뛴다 — 중복 템플릿이 쌓이면 시간표가 지저분해지고 폐기도 번거로워진다.
+// 시간표 등록은 코치 단위로 다룬다. 같은 시간대에 코치가 둘 이상일 수 있으므로
+// 중복 판정 키는 (요일, 시간, 코치)다.
+//
+// mode="add"  : 선택한 조합만 반영. 선택하지 않은 기존 시간대는 그대로 둔다.
+// mode="sync" : 선택 요일에서 이 코치의 시간표를 선택한 시간들과 일치시킨다.
+//               선택하지 않은 시간대는 폐기 → "월수금 18/19/20 → 월수금 18/20" 같은 일괄 변경용.
+//
+// 어느 쪽이든 UPDATE로 덮어쓰지 않는다. 기존 로우를 닫고(is_active=false + effective_until)
+// 새 로우를 추가한다(원칙 4). 이미 생성된 슬롯은 바뀌지 않고 다음 슬롯 생성부터 반영된다.
 export async function addTemplate(form: FormData) {
   const days = form.getAll("day_of_week").map(Number).filter((d) => d >= 0 && d <= 6);
   const times = form.getAll("start_time").map(String).filter(Boolean);
-  if (days.length === 0) return { error: "요일을 하나 이상 선택하세요." };
-  if (times.length === 0) return { error: "시간을 하나 이상 선택하세요." };
-
+  const mode = String(form.get("mode") ?? "add");
   const coach_name = String(form.get("coach_name")).trim();
   const capacity = Number(form.get("capacity"));
+
+  if (days.length === 0) return { error: "요일을 하나 이상 선택하세요." };
+  if (times.length === 0 && mode === "add") return { error: "시간을 하나 이상 선택하세요." };
+  if (!coach_name) return { error: "코치를 입력하세요." };
+
   const sb = await db();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
 
-  // 같은 코치의 활성 템플릿 중 겹치는 조합 조회
-  const { data: existing } = await sb
+  // 이 코치의 대상 요일 활성 템플릿
+  const { data: existing, error: exErr } = await sb
     .from("slot_templates")
-    .select("day_of_week, start_time")
-    .eq("coach_name", coach_name)
+    .select("id, day_of_week, start_time, capacity")
     .eq("is_active", true)
+    .eq("coach_name", coach_name)
     .in("day_of_week", days);
-  const taken = new Set((existing ?? []).map((e: any) => `${e.day_of_week}@${String(e.start_time).slice(0, 5)}`));
+  if (exErr) return { error: exErr.message };
 
-  const rows = days
-    .flatMap((d) => times.map((t) => ({ day_of_week: d, start_time: t, coach_name, capacity })))
-    .filter((r) => !taken.has(`${r.day_of_week}@${r.start_time.slice(0, 5)}`));
+  const hhmm = (t: string) => String(t).slice(0, 5);
+  const key = (d: number, t: string) => `${d}@${hhmm(t)}`;
+  const current = new Map((existing ?? []).map((e: any) => [key(e.day_of_week, e.start_time), e]));
+  const wanted = new Set(times.map(hhmm));
 
-  const skipped = days.length * times.length - rows.length;
-  if (rows.length === 0) return { error: "선택한 조합이 모두 이미 등록되어 있습니다." };
+  const toClose: string[] = [];
+  const toInsert: { day_of_week: number; start_time: string; coach_name: string; capacity: number }[] = [];
+  let unchanged = 0;
 
-  const { error } = await sb.from("slot_templates").insert(rows);
-  if (error) return { error: error.message };
+  for (const d of days) {
+    for (const t of times) {
+      const cur: any = current.get(key(d, t));
+      if (!cur) toInsert.push({ day_of_week: d, start_time: t, coach_name, capacity });
+      else if (cur.capacity === capacity) unchanged++;
+      else { toClose.push(cur.id); toInsert.push({ day_of_week: d, start_time: t, coach_name, capacity }); }
+    }
+  }
+
+  // sync: 선택하지 않은 시간대는 폐기
+  let removed = 0;
+  if (mode === "sync") {
+    for (const [k, cur] of current) {
+      if (!wanted.has(k.split("@")[1])) { toClose.push((cur as any).id); removed++; }
+    }
+  }
+
+  if (toInsert.length === 0 && toClose.length === 0) {
+    return { error: `선택한 ${unchanged}개 시간대가 이미 같은 값으로 등록되어 있습니다.` };
+  }
+
+  if (toClose.length > 0) {
+    const { error } = await sb.from("slot_templates")
+      .update({ is_active: false, effective_until: today }).in("id", toClose);
+    if (error) return { error: error.message };
+  }
+  if (toInsert.length > 0) {
+    const { error } = await sb.from("slot_templates").insert(toInsert);
+    if (error) return { error: error.message };
+  }
+
   revalidatePath("/admin/schedule");
-  return { ok: true, count: rows.length, skipped };
+  return { ok: true, added: toInsert.length - (toClose.length - removed), replaced: toClose.length - removed, removed, unchanged };
 }
 
 // 시간표 항목 수정: UPDATE로 덮어쓰지 않는다. 기존 로우를 닫고 새 값으로 새 로우를 만든다.
