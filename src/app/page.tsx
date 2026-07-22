@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 import { getMemberSession } from "@/lib/auth";
 import {
-  getActiveMembership, getDaySlots, getMyUpcoming, getSettings,
-  getSlotDates, getWeeklyUsage, hasReservationThatDay,
+  getActiveMembership, getMonthSlots, getMyUpcoming, getSettings, getWeeklyUsage,
 } from "@/lib/member-data";
 import { todayKST, daysBetween } from "@/lib/kst";
 import DashboardClient from "@/components/DashboardClient";
 
-// 선택한 날짜가 속한 달의 1일 ~ 말일 (캘린더 표시 범위)
+// 선택한 날짜가 속한 달의 1일 ~ 말일. 이 범위를 한 번에 받아 날짜 전환은 클라이언트에서 한다.
 function monthRange(date: string) {
   const from = date.slice(0, 8) + "01";
   const d = new Date(from + "T00:00:00Z");
@@ -28,12 +27,11 @@ export default async function Dashboard({
   const date = (await searchParams).date ?? today;
   const { from, to } = monthRange(date);
 
-  const [membership, slots, mine, settings, slotDates, usage] = await Promise.all([
+  const [membership, monthSlots, mine, settings, usage] = await Promise.all([
     getActiveMembership(s.jwt, s.memberId),
-    getDaySlots(s.jwt, date),
+    getMonthSlots(s.jwt, from, to),
     getMyUpcoming(s.jwt),
     getSettings(s.jwt),
-    getSlotDates(s.jwt, from, to),
     getWeeklyUsage(s.jwt, date),
   ]);
 
@@ -46,11 +44,9 @@ export default async function Dashboard({
           ? { end_date: membership.end_date, daysLeft: daysBetween(today, membership.end_date) }
           : null
       }
-      slots={slots}
-      reservedToday={hasReservationThatDay(slots)}
+      monthSlots={monthSlots}
       mine={mine}
       settings={settings}
-      slotDates={slotDates}
       usage={usage}
     />
   );

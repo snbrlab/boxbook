@@ -1,27 +1,33 @@
 import { supabaseAsMember } from "@/lib/supabase/clients";
 import { todayKST } from "@/lib/kst";
 
+export type MyStatus = "reserved" | "waiting" | "attended" | "noshow";
+
 export type SlotView = {
   id: string;
+  date: string;
   start_time: string;
   coach_name: string;
   capacity: number;
   reserved: number;
   waiting: number;
-  // 내 예약(있으면)
+  // 내 예약(있으면). 지난 수업은 attended/noshow로 출석 여부가 남는다.
   my_reservation_id: string | null;
-  my_status: "reserved" | "waiting" | null;
+  my_status: MyStatus | null;
   my_waiting_order: number | null;
 };
 
-// 대상 날짜의 슬롯 목록 + 집계 + 내 예약 상태. 타인 이름은 애초에 안 읽는다(RLS).
-export async function getDaySlots(jwt: string, date: string): Promise<SlotView[]> {
+// 한 달치 슬롯 + 집계 + 내 예약 상태를 한 번에. 날짜 전환은 클라이언트에서 필터링한다
+// (날짜마다 서버 왕복하면 화면 전환이 눈에 띄게 느려진다). 타인 이름은 애초에 안 읽는다(RLS).
+export async function getMonthSlots(jwt: string, from: string, to: string): Promise<SlotView[]> {
   const sb = supabaseAsMember(jwt);
   const [{ data: slots }, { data: counts }, { data: mine }] = await Promise.all([
-    sb.from("slots").select("id, start_time, coach_name, capacity").eq("date", date).order("start_time"),
-    sb.rpc("slot_counts", { p_date: date }),
-    // RLS로 내 예약만 반환됨
-    sb.from("reservations").select("id, slot_id, status, waiting_order").in("status", ["reserved", "waiting"]),
+    sb.from("slots").select("id, date, start_time, coach_name, capacity")
+      .gte("date", from).lte("date", to).order("date").order("start_time"),
+    sb.rpc("slot_counts_range", { p_from: from, p_to: to }),
+    // RLS로 내 예약만 반환됨. 지난 수업의 출석 여부를 보려면 attended/noshow도 필요하다.
+    sb.from("reservations").select("id, slot_id, status, waiting_order")
+      .in("status", ["reserved", "waiting", "attended", "noshow"]),
   ]);
   const cMap = new Map((counts ?? []).map((c: any) => [c.slot_id, c]));
   const mMap = new Map((mine ?? []).map((m: any) => [m.slot_id, m]));
@@ -30,6 +36,7 @@ export async function getDaySlots(jwt: string, date: string): Promise<SlotView[]
     const m: any = mMap.get(s.id);
     return {
       id: s.id,
+      date: s.date,
       start_time: s.start_time,
       coach_name: s.coach_name,
       capacity: s.capacity,
@@ -40,11 +47,6 @@ export async function getDaySlots(jwt: string, date: string): Promise<SlotView[]
       my_waiting_order: m?.waiting_order ?? null,
     };
   });
-}
-
-// 대상 날짜에 이미 다른 예약이 있는지 (1일 1회 안내용)
-export function hasReservationThatDay(slots: SlotView[]): boolean {
-  return slots.some((s) => s.my_status === "reserved");
 }
 
 // 캘린더에 "수업 있는 날"을 표시하기 위한 날짜 목록

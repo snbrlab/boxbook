@@ -10,7 +10,8 @@ export function AdminCalendar({
   date: string; today: string; slotDates: string[]; booked: string[];
 }) {
   const router = useRouter();
-  const go = (d: string) => router.push(`/admin?date=${d}`);
+  // scroll:false — 날짜를 바꿀 때마다 화면이 맨 위로 튀지 않게
+  const go = (d: string) => router.push(`/admin?date=${d}`, { scroll: false });
   return (
     <MonthCalendar
       date={date}
