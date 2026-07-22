@@ -6,11 +6,36 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 import { WD, DOW_ORDER } from "@/lib/dow";
+// 예약은 대부분 '앞으로의 날짜'다. 과거만 세면 실제 예약 현황과 안 맞는다.
+// 그래서 기본은 '이번 달'(과거+예정 모두)로 두고, 지난 기간은 별도 선택지로 둔다.
 const RANGES = [
-  { key: "30", label: "최근 30일", days: 30 },
-  { key: "90", label: "최근 90일", days: 90 },
-  { key: "365", label: "최근 1년", days: 365 },
+  { key: "month", label: "이번 달" },
+  { key: "next", label: "다음 달" },
+  { key: "30", label: "지난 30일" },
+  { key: "90", label: "지난 90일" },
+  { key: "all", label: "전체" },
 ];
+
+function rangeOf(key: string, today: string): { from: string; to: string } {
+  const monthStart = (offset: number) => {
+    const d = new Date(today.slice(0, 8) + "01T00:00:00Z");
+    d.setUTCMonth(d.getUTCMonth() + offset);
+    return d.toISOString().slice(0, 10);
+  };
+  const monthEnd = (offset: number) => {
+    const d = new Date(today.slice(0, 8) + "01T00:00:00Z");
+    d.setUTCMonth(d.getUTCMonth() + offset + 1);
+    d.setUTCDate(0);
+    return d.toISOString().slice(0, 10);
+  };
+  switch (key) {
+    case "next":  return { from: monthStart(1), to: monthEnd(1) };
+    case "30":    return { from: addDays(today, -30), to: today };
+    case "90":    return { from: addDays(today, -90), to: today };
+    case "all":   return { from: "2000-01-01", to: addDays(today, 365) };
+    default:      return { from: monthStart(0), to: monthEnd(0) };
+  }
+}
 
 function Stat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -41,11 +66,11 @@ function Bars({ data }: { data: { label: string; value: number }[] }) {
 }
 
 export default async function StatsPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
-  const rangeKey = (await searchParams).range ?? "30";
+  const rangeKey = (await searchParams).range ?? "month";
   const range = RANGES.find((r) => r.key === rangeKey) ?? RANGES[0];
   const today = todayKST();
-  const from = addDays(today, -range.days);
-  const s = await adminStats(from, today);
+  const { from, to } = rangeOf(range.key, today);
+  const s = await adminStats(from, to);
 
   return (
     <div className="space-y-4">
@@ -60,11 +85,14 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
           ))}
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">{from} ~ {today}</p>
+      <p className="text-xs text-muted-foreground">
+        {from === "2000-01-01" ? "전체 기간" : `${from} ~ ${to}`}
+        {to > today && " · 예정된 예약 포함"}
+      </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="총 예약" value={s.total} sub={`자율운동 ${s.openGym}건 포함`} />
-        <Stat label="출석률" value={s.attendRate === null ? "-" : `${s.attendRate}%`} sub={`출석 ${s.attended} / 노쇼 ${s.noshow}`} />
+        <Stat label="출석률" value={s.attendRate === null ? "-" : `${s.attendRate}%`} sub={s.attendRate === null ? "출석 기록 없음" : `출석 ${s.attended} / 노쇼 ${s.noshow}`} />
         <Stat label="취소" value={s.cancelled} />
         <Stat label="신규 회원" value={s.newMembers} sub="최근 30일" />
       </div>

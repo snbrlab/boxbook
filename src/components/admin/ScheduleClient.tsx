@@ -15,6 +15,8 @@ type Closed = { date: string; reason: string | null };
 // ponytail: 정시 단위만 지원. 30분 단위가 필요해지면 여기에 30분 슬롯을 추가한다.
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 06:00 ~ 23:00
 
+const todayStr = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+
 export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed: Closed[] }) {
   const [busy, start] = useTransition();
   const [days, setDays] = useState<number[]>([1]);
@@ -236,18 +238,41 @@ export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed
             <div className="space-y-1"><Label className="text-xs">사유</Label><Input name="reason" placeholder="명절 등" /></div>
             <Button type="submit" disabled={busy}>추가</Button>
           </form>
-          <div className="space-y-1">
-            {closed.length === 0 && <p className="text-xs text-muted-foreground">예정된 휴관일 없음</p>}
-            {closed.map((c) => (
-              <div key={c.date} className="flex items-center justify-between text-sm">
-                <span>{c.date} {c.reason && <span className="text-muted-foreground">· {c.reason}</span>}</span>
-                <Button size="sm" variant="ghost" className="h-7" disabled={busy}
-                  onClick={() => start(async () => {
-                    const r = await removeClosedDate(c.date);
-                    if (r?.error) toast.error(r.error);
-                  })}>제거</Button>
-              </div>
-            ))}
+          <div className="space-y-2">
+            {(() => {
+              const t = todayStr();
+              const upcoming = closed.filter((c) => c.date >= t).sort((a, b) => a.date.localeCompare(b.date));
+              const past = closed.filter((c) => c.date < t);
+              const Row = ({ c, dim }: { c: Closed; dim?: boolean }) => (
+                <div className={`flex items-center justify-between text-sm ${dim ? "text-muted-foreground" : ""}`}>
+                  <span>{c.date} {c.reason && <span className="text-muted-foreground">· {c.reason}</span>}</span>
+                  <Button size="sm" variant="ghost" className="h-7" disabled={busy}
+                    onClick={() => start(async () => {
+                      const r = await removeClosedDate(c.date);
+                      if (r?.error) toast.error(r.error);
+                    })}>제거</Button>
+                </div>
+              );
+              return (
+                <>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium">예정 ({upcoming.length})</p>
+                    {upcoming.length === 0 && <p className="text-xs text-muted-foreground">예정된 휴관일 없음</p>}
+                    {upcoming.map((c) => <Row key={c.date} c={c} />)}
+                  </div>
+                  {past.length > 0 && (
+                    <details className="pt-1 border-t">
+                      <summary className="text-xs text-muted-foreground cursor-pointer py-1">
+                        지난 휴관일 {past.length}건 (기록 보관)
+                      </summary>
+                      <div className="space-y-1 pt-1">
+                        {past.map((c) => <Row key={c.date} c={c} dim />)}
+                      </div>
+                    </details>
+                  )}
+                </>
+              );
+            })()}
           </div>
           <p className="text-xs text-muted-foreground">휴관일로 등록해도 이미 생성된 해당일 슬롯은 자동 삭제되지 않습니다. 타임슬롯 화면에서 개별 삭제하세요.</p>
         </CardContent>

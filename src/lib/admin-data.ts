@@ -77,10 +77,11 @@ export async function adminTemplates() {
   return data ?? [];
 }
 
+// 지난 휴관일도 기록으로 남는다. 화면에서 예정/지난 것을 나눠 보여준다.
 export async function adminClosedDates() {
   const sb = await supabaseAdminSession();
-  const { data } = await sb.from("closed_dates").select("date, reason").gte("date", todayKST()).order("date");
-  return data ?? [];
+  const { data } = await sb.from("closed_dates").select("date, reason").order("date", { ascending: false });
+  return (data ?? []) as { date: string; reason: string | null }[];
 }
 
 // 관리자 목록 + 현재 로그인한 관리자 id (본인 삭제 버튼 숨기기용)
