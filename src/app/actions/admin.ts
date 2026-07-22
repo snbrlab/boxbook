@@ -388,10 +388,13 @@ export async function generateSlots(from: string, to: string) {
   await requireAdmin();
   const svc = supabaseService();
   const { data, error } = await svc.rpc("generate_slots", { p_from: from, p_to: to });
-  if (error) return { error: error.message };
-  // 생성 직후 고정 수업 자동 예약까지 함께 (Cron과 동일 동작)
-  const { data: auto } = await svc.rpc("auto_reserve_recurring", { p_from: from, p_to: to });
+  if (error) return { error: `슬롯 생성 실패: ${error.message}` };
+
+  // 생성 직후 고정 수업 자동 예약까지 함께 (Cron과 동일 동작).
+  // 여기 실패를 삼키면 "슬롯은 생겼는데 고정 예약만 안 되는" 상태가 조용히 만들어진다.
+  const { data: auto, error: autoErr } = await svc.rpc("auto_reserve_recurring", { p_from: from, p_to: to });
   revalidatePath("/admin");
+  if (autoErr) return { error: `슬롯 ${data}개는 생성됐지만 고정 수업 자동 예약에 실패: ${autoErr.message}` };
   return { inserted: data, autoReserved: auto ?? 0 };
 }
 
