@@ -10,12 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type Tpl = { id: string; day_of_week: number; start_time: string; coach_name: string; capacity: number };
 type Closed = { date: string; reason: string | null };
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
+// ponytail: 정시 단위만 지원. 30분 단위가 필요해지면 여기에 30분 슬롯을 추가한다.
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 06:00 ~ 23:00
 
 export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed: Closed[] }) {
   const [busy, start] = useTransition();
   const [days, setDays] = useState<number[]>([1]);
+  const [hours, setHours] = useState<number[]>([]);
   const toggleDay = (i: number) =>
     setDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i].sort()));
+  const toggleHour = (h: number) =>
+    setHours((s) => (s.includes(h) ? s.filter((x) => x !== h) : [...s, h].sort((a, b) => a - b)));
 
   return (
     <div className="space-y-6">
@@ -33,7 +38,8 @@ export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed
             action={(fd) => start(async () => {
               const r = await addTemplate(fd);
               if (r?.error) return void toast.error(r.error);
-              toast.success(`${r.count}개 요일에 추가되었습니다.`);
+              toast.success(`${r.count}개 추가${r.skipped ? ` (${r.skipped}개는 이미 등록됨)` : ""}`);
+              setHours([]);
             })}
             className="flex flex-wrap gap-2 items-end"
           >
@@ -53,11 +59,25 @@ export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed
                 <input key={d} type="hidden" name="day_of_week" value={d} />
               ))}
             </div>
-            <div className="space-y-1"><Label className="text-xs">시간</Label><Input type="time" name="start_time" required className="w-28" /></div>
+            <div className="space-y-1 w-full">
+              <Label className="text-xs">시간 (정시, 여러 개 선택 가능)</Label>
+              <div className="flex flex-wrap gap-1">
+                {HOURS.map((h) => (
+                  <button type="button" key={h} onClick={() => toggleHour(h)}
+                    aria-pressed={hours.includes(h)}
+                    className={`w-11 h-8 rounded text-xs border ${hours.includes(h) ? "bg-primary text-primary-foreground border-primary" : ""}`}>
+                    {String(h).padStart(2, "0")}:00
+                  </button>
+                ))}
+              </div>
+              {hours.map((h) => (
+                <input key={h} type="hidden" name="start_time" value={`${String(h).padStart(2, "0")}:00`} />
+              ))}
+            </div>
             <div className="space-y-1"><Label className="text-xs">코치</Label><Input name="coach_name" required className="w-24" /></div>
             <div className="space-y-1"><Label className="text-xs">정원</Label><Input type="number" name="capacity" min={1} defaultValue={6} required className="w-20" /></div>
-            <Button type="submit" disabled={busy || days.length === 0}>
-              추가{days.length > 1 ? ` (${days.length}개 요일)` : ""}
+            <Button type="submit" disabled={busy || days.length === 0 || hours.length === 0}>
+              추가{days.length * hours.length > 1 ? ` (${days.length}요일 × ${hours.length}시간 = ${days.length * hours.length}개)` : ""}
             </Button>
           </form>
         </CardContent>

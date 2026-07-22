@@ -86,21 +86,38 @@ export async function setAttendance(reservationId: string, status: "attended" | 
 }
 
 // ── 주간 시간표 (slot_templates) ────────────────────────
-// 요일 다중 선택 지원: 선택한 요일 수만큼 로우를 만든다 (월/수/금 같은 시간대를 한 번에)
+// 요일 × 시간 다중 선택: 조합 수만큼 로우를 만든다 (월/수/금 × 19시/20시를 한 번에)
+// 이미 활성인 조합은 건너뛴다 — 중복 템플릿이 쌓이면 시간표가 지저분해지고 폐기도 번거로워진다.
 export async function addTemplate(form: FormData) {
   const days = form.getAll("day_of_week").map(Number).filter((d) => d >= 0 && d <= 6);
+  const times = form.getAll("start_time").map(String).filter(Boolean);
   if (days.length === 0) return { error: "요일을 하나 이상 선택하세요." };
+  if (times.length === 0) return { error: "시간을 하나 이상 선택하세요." };
 
-  const base = {
-    start_time: String(form.get("start_time")),
-    coach_name: String(form.get("coach_name")).trim(),
-    capacity: Number(form.get("capacity")),
-  };
+  const coach_name = String(form.get("coach_name")).trim();
+  const capacity = Number(form.get("capacity"));
   const sb = await db();
-  const { error } = await sb.from("slot_templates").insert(days.map((d) => ({ ...base, day_of_week: d })));
+
+  // 같은 코치의 활성 템플릿 중 겹치는 조합 조회
+  const { data: existing } = await sb
+    .from("slot_templates")
+    .select("day_of_week, start_time")
+    .eq("coach_name", coach_name)
+    .eq("is_active", true)
+    .in("day_of_week", days);
+  const taken = new Set((existing ?? []).map((e: any) => `${e.day_of_week}@${String(e.start_time).slice(0, 5)}`));
+
+  const rows = days
+    .flatMap((d) => times.map((t) => ({ day_of_week: d, start_time: t, coach_name, capacity })))
+    .filter((r) => !taken.has(`${r.day_of_week}@${r.start_time.slice(0, 5)}`));
+
+  const skipped = days.length * times.length - rows.length;
+  if (rows.length === 0) return { error: "선택한 조합이 모두 이미 등록되어 있습니다." };
+
+  const { error } = await sb.from("slot_templates").insert(rows);
   if (error) return { error: error.message };
   revalidatePath("/admin/schedule");
-  return { ok: true, count: days.length };
+  return { ok: true, count: rows.length, skipped };
 }
 
 // 시간표 항목 폐기: 덮어쓰지 않고 닫는다 (is_active=false + effective_until=오늘). 새 값은 addTemplate로.
