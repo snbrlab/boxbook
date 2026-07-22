@@ -18,7 +18,7 @@ type Props = {
   membership: { end_date: string; daysLeft: number } | null;
   monthSlots: SlotView[];
   mine: MyReservation[];
-  settings: { penalty_enabled: boolean; penalty_hours: number };
+  settings: { penalty_enabled: boolean; penalty_hours: number; notice_text: string | null; notice_updated_at: string | null; hours_text: string | null };
   usage: { used: number; weekly_limit: number } | null;
 };
 
@@ -73,6 +73,24 @@ export default function DashboardClient(p: Props) {
           </Button>
         </div>
       </header>
+
+      {p.settings.notice_text && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="py-3">
+            <div className="text-xs font-semibold text-primary mb-1">📢 공지사항</div>
+            <p className="text-sm whitespace-pre-wrap">{p.settings.notice_text}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {p.settings.hours_text && (
+        <Card>
+          <CardContent className="py-3">
+            <div className="text-xs font-semibold text-muted-foreground mb-1">🕒 운영시간</div>
+            <p className="text-sm whitespace-pre-wrap">{p.settings.hours_text}</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="py-3 text-sm">
@@ -137,7 +155,7 @@ export default function DashboardClient(p: Props) {
                 <CardContent className="py-3 flex items-center justify-between gap-3">
                   <div className="space-y-0.5">
                     <div className="font-semibold">
-                      {fmtTime(s.start_time)} · {s.coach_name}
+                      {fmtTime(s.start_time)} · {s.is_open_gym ? "자율운동" : s.coach_name}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       예약 {s.reserved}/{s.capacity}
@@ -165,7 +183,7 @@ export default function DashboardClient(p: Props) {
                         {mineHere === "reserved" ? "예약 취소" : "대기 취소"}
                       </Button>
                     ) : blockedDaily ? (
-                      <Button size="sm" disabled>오늘 예약함</Button>
+                      <Button size="sm" disabled>{date === p.today ? "오늘 예약함" : "이 날 예약함"}</Button>
                     ) : (
                       <Button size="sm" disabled={busy} variant={full ? "secondary" : "default"} onClick={() => onReserve(s)}>
                         {full ? "대기 신청" : "예약하기"}

@@ -8,7 +8,7 @@ export async function adminMonthSlots(from: string, to: string) {
   const sb = await supabaseAdminSession();
   const { data } = await sb
     .from("slots")
-    .select("id, date, start_time, coach_name, capacity, reservations(id, status, waiting_order, member:members(id, name, phone, created_at))")
+    .select("id, date, start_time, coach_name, capacity, is_open_gym, reservations(id, status, waiting_order, member:members(id, name, phone, created_at))")
     .gte("date", from)
     .lte("date", to)
     .order("date")
@@ -30,6 +30,7 @@ export async function adminMonthSlots(from: string, to: string) {
       start_time: s.start_time,
       coach_name: s.coach_name,
       capacity: s.capacity,
+      is_open_gym: s.is_open_gym ?? false,
       reserved: rs.filter((r) => ["reserved", "attended", "noshow"].includes(r.status)).map(norm),
       waiting: rs.filter((r) => r.status === "waiting").sort((a, b) => a.waiting_order - b.waiting_order).map(norm),
     };
@@ -99,5 +100,8 @@ export async function adminSettings() {
     penalty_hours: number;
     noshow_counts: boolean;
     rules_text: string | null;
+    notice_text: string | null;
+    notice_updated_at: string | null;
+    hours_text: string | null;
   };
 }

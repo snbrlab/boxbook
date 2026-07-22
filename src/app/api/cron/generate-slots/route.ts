@@ -10,8 +10,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const today = todayKST();
-  const from = addDays(today, 14);
-  const to = addDays(today, 21);
+  // 항상 한 달 앞까지 채워둔다 (멱등이라 매주 겹쳐 돌아도 무해)
+  const from = today;
+  const to = addDays(today, 35);
   const svc = supabaseService();
 
   const { data: inserted, error } = await svc.rpc("generate_slots", { p_from: from, p_to: to });

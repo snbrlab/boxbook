@@ -36,6 +36,36 @@ export default async function SettingsPage() {
           </label>
 
           <div className="space-y-1.5">
+            <Label htmlFor="ht">운영시간</Label>
+            <textarea
+              id="ht"
+              name="hours_text"
+              rows={3}
+              defaultValue={s.hours_text ?? ""}
+              placeholder={"예)\n평일 06:00 ~ 23:00\n토요일 09:00 ~ 18:00\n일요일 휴무"}
+              className="w-full rounded-lg border bg-transparent p-2 text-sm"
+            />
+            <p className="text-xs text-muted-foreground">수업 시간표와 별개로, 체육관 운영시간을 회원 화면에 안내합니다.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="nt">공지사항</Label>
+            <textarea
+              id="nt"
+              name="notice_text"
+              rows={3}
+              defaultValue={s.notice_text ?? ""}
+              placeholder="비워두면 회원 화면에 표시되지 않습니다."
+              className="w-full rounded-lg border bg-transparent p-2 text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              회원 예약 화면 상단에 배너로 표시됩니다.
+              {s.notice_updated_at &&
+                ` (최근 수정: ${new Date(s.notice_updated_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })})`}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
             <Label htmlFor="rt">체육관 규정</Label>
             <textarea
               id="rt"

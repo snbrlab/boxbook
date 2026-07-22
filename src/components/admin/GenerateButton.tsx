@@ -4,12 +4,17 @@ import { toast } from "sonner";
 import { generateSlots } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 
-// today+0 ~ +21 보충 생성(멱등). Cron과 별개로 관리자가 즉시 채우고 싶을 때.
-export function GenerateButton() {
+// 지금 보고 있는 달(1일~말일)을 채운다. 멱등이라 여러 번 눌러도 중복 생성되지 않는다.
+export function GenerateButton({ date }: { date: string }) {
   const [busy, start] = useTransition();
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
-  const to = new Date(today + "T00:00:00Z");
-  to.setUTCDate(to.getUTCDate() + 21);
+
+  const from = date.slice(0, 8) + "01";
+  const last = new Date(from + "T00:00:00Z");
+  last.setUTCMonth(last.getUTCMonth() + 1);
+  last.setUTCDate(0);
+  const to = last.toISOString().slice(0, 10);
+  const label = `${Number(date.slice(5, 7))}월 슬롯 채우기`;
+
   return (
     <Button
       size="sm"
@@ -17,13 +22,13 @@ export function GenerateButton() {
       disabled={busy}
       onClick={() =>
         start(async () => {
-          const r = await generateSlots(today, to.toISOString().slice(0, 10));
+          const r = await generateSlots(from, to);
           if ("error" in r) toast.error(r.error as string);
           else toast.success(`슬롯 ${r.inserted}개 생성 · 고정 수업 ${r.autoReserved}건 예약`);
         })
       }
     >
-      슬롯 채우기
+      {label}
     </Button>
   );
 }

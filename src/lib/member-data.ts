@@ -9,6 +9,7 @@ export type SlotView = {
   start_time: string;
   coach_name: string;
   capacity: number;
+  is_open_gym: boolean;
   reserved: number;
   waiting: number;
   // 내 예약(있으면). 지난 수업은 attended/noshow로 출석 여부가 남는다.
@@ -21,14 +22,17 @@ export type SlotView = {
 // (날짜마다 서버 왕복하면 화면 전환이 눈에 띄게 느려진다). 타인 이름은 애초에 안 읽는다(RLS).
 export async function getMonthSlots(jwt: string, from: string, to: string): Promise<SlotView[]> {
   const sb = supabaseAsMember(jwt);
-  const [{ data: slots }, { data: counts }, { data: mine }] = await Promise.all([
-    sb.from("slots").select("id, date, start_time, coach_name, capacity")
+  const [{ data: slots }, { data: counts, error: cErr }, { data: mine }] = await Promise.all([
+    sb.from("slots").select("id, date, start_time, coach_name, capacity, is_open_gym")
       .gte("date", from).lte("date", to).order("date").order("start_time"),
     sb.rpc("slot_counts_range", { p_from: from, p_to: to }),
     // RLS로 내 예약만 반환됨. 지난 수업의 출석 여부를 보려면 attended/noshow도 필요하다.
     sb.from("reservations").select("id, slot_id, status, waiting_order")
       .in("status", ["reserved", "waiting", "attended", "noshow"]),
   ]);
+  // 집계 실패를 0으로 삼키면 "정원이 비어있다"는 잘못된 화면이 나온다. 원인을 그대로 드러낸다.
+  if (cErr) throw new Error(`예약 집계 조회 실패 (slot_counts_range): ${cErr.message}`);
+
   const cMap = new Map((counts ?? []).map((c: any) => [c.slot_id, c]));
   const mMap = new Map((mine ?? []).map((m: any) => [m.slot_id, m]));
   return (slots ?? []).map((s: any) => {
@@ -40,6 +44,7 @@ export async function getMonthSlots(jwt: string, from: string, to: string): Prom
       start_time: s.start_time,
       coach_name: s.coach_name,
       capacity: s.capacity,
+      is_open_gym: s.is_open_gym ?? false,
       reserved: c?.reserved_count ?? 0,
       waiting: c?.waiting_count ?? 0,
       my_reservation_id: m?.id ?? null,
@@ -66,8 +71,9 @@ export async function getWeeklyUsage(jwt: string, date: string) {
 
 export async function getSettings(jwt: string) {
   const sb = supabaseAsMember(jwt);
-  const { data } = await sb.from("gym_settings").select("penalty_enabled, penalty_hours").eq("id", 1).maybeSingle();
-  return (data as { penalty_enabled: boolean; penalty_hours: number } | null) ?? { penalty_enabled: true, penalty_hours: 2 };
+  const { data } = await sb.from("gym_settings").select("penalty_enabled, penalty_hours, notice_text, notice_updated_at, hours_text").eq("id", 1).maybeSingle();
+  return (data as { penalty_enabled: boolean; penalty_hours: number; notice_text: string | null; notice_updated_at: string | null; hours_text: string | null } | null)
+    ?? { penalty_enabled: true, penalty_hours: 2, notice_text: null, notice_updated_at: null, hours_text: null };
 }
 
 export type MyReservation = {

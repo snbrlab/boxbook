@@ -32,7 +32,8 @@ export default async function Dashboard({
     getMonthSlots(s.jwt, from, to),
     getMyUpcoming(s.jwt),
     getSettings(s.jwt),
-    getWeeklyUsage(s.jwt, date),
+    // "이번 주"는 보고 있는 날짜가 아니라 오늘 기준이어야 한다
+    getWeeklyUsage(s.jwt, today),
   ]);
 
   return (

@@ -10,7 +10,7 @@ const fmtDay = (d: string) => `${d.slice(5, 7)}.${d.slice(8, 10)} (${WD[new Date
 
 type Person = { id: string; status: string; waiting_order: number | null; name: string; phone: string; isNew: boolean };
 type Slot = {
-  id: string; date: string; start_time: string; coach_name: string; capacity: number;
+  id: string; date: string; start_time: string; coach_name: string; capacity: number; is_open_gym: boolean;
   reserved: Person[]; waiting: Person[];
 };
 
@@ -33,7 +33,7 @@ export function TimeslotsClient({ today, date: initialDate, monthSlots }: {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold">타임슬롯</h1>
-        <GenerateButton />
+        <GenerateButton date={date} />
       </div>
 
       <MonthCalendar

@@ -1,13 +1,13 @@
 "use client";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { setAttendance, deleteSlot } from "@/app/actions/admin";
+import { setAttendance, deleteSlot, toggleOpenGym } from "@/app/actions/admin";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 type Person = { id: string; status: string; waiting_order: number | null; name: string; phone: string; isNew: boolean };
-type Slot = { id: string; start_time: string; coach_name: string; capacity: number; reserved: Person[]; waiting: Person[] };
+type Slot = { id: string; start_time: string; coach_name: string; capacity: number; is_open_gym: boolean; reserved: Person[]; waiting: Person[] };
 
 export function AdminSlotCard({ slot }: { slot: Slot }) {
   const [busy, start] = useTransition();
@@ -30,14 +30,20 @@ export function AdminSlotCard({ slot }: { slot: Slot }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between py-3 space-y-0">
         <div className="font-semibold">
-          {slot.start_time.slice(0, 5)} · {slot.coach_name}{" "}
+          {slot.start_time.slice(0, 5)} · {slot.is_open_gym ? "자율운동" : slot.coach_name}{" "}
           <span className="text-sm font-normal text-muted-foreground">
             ({slot.reserved.filter((r) => r.status !== "noshow").length}/{slot.capacity})
           </span>
         </div>
-        <Button variant="ghost" size="sm" className="text-red-500" disabled={busy} onClick={onDelete}>
-          삭제
-        </Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" disabled={busy}
+            onClick={() => start(async () => { await toggleOpenGym(slot.id, !slot.is_open_gym); })}>
+            {slot.is_open_gym ? "수업으로" : "자율운동으로"}
+          </Button>
+          <Button variant="ghost" size="sm" className="text-red-500" disabled={busy} onClick={onDelete}>
+            삭제
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-2 pb-3">
         {slot.reserved.length === 0 && slot.waiting.length === 0 && (

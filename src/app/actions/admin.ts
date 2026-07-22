@@ -239,6 +239,12 @@ export async function updateSlot(id: string, patch: { coach_name?: string; capac
   await (await db()).from("slots").update(patch).eq("id", id);
   revalidatePath("/admin");
 }
+// 수업 ↔ 자율운동 전환. 예약 규칙은 동일하게 적용되므로 표시만 달라진다.
+export async function toggleOpenGym(id: string, is_open_gym: boolean) {
+  await (await db()).from("slots").update({ is_open_gym }).eq("id", id);
+  revalidatePath("/admin");
+}
+
 // 예약자 있는 슬롯 삭제는 UI에서 확인 절차를 거친 뒤 호출 (cascade로 예약도 삭제)
 export async function deleteSlot(id: string) {
   await (await db()).from("slots").delete().eq("id", id);
@@ -298,11 +304,15 @@ export async function removeAdmin(id: string) {
 // ── 설정 ──────────────────────────────────────────────
 export async function saveSettings(form: FormData) {
   const sb = await db();
+  const notice = String(form.get("notice_text") ?? "").trim();
   await sb.from("gym_settings").update({
     penalty_enabled: form.get("penalty_enabled") === "on",
     penalty_hours: Number(form.get("penalty_hours")),
     noshow_counts: form.get("noshow_counts") === "on",
     rules_text: String(form.get("rules_text") ?? "") || null,
+    hours_text: String(form.get("hours_text") ?? "").trim() || null,
+    notice_text: notice || null,
+    notice_updated_at: notice ? new Date().toISOString() : null,
   }).eq("id", 1);
   revalidatePath("/admin/settings");
 }
