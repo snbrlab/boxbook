@@ -1,13 +1,17 @@
 import { supabaseAdminSession } from "@/lib/supabase/clients";
 import { todayKST, daysBetween } from "@/lib/kst";
 
-// 관리자는 RLS상 전부 조회 가능. 타임슬롯 대시보드: 날짜별 슬롯 + 실명/전화 명단.
-export async function adminDaySlots(date: string) {
+// 관리자는 RLS상 전부 조회 가능. 타임슬롯 대시보드: 슬롯 + 실명/전화 명단.
+// 한 달치를 한 번에 받아 날짜 전환은 클라이언트에서 한다 (날짜마다 왕복하면 느리다).
+// 관리자는 어차피 전 명단 열람 권한이 있으므로 미리 받아도 새로 노출되는 정보는 없다.
+export async function adminMonthSlots(from: string, to: string) {
   const sb = await supabaseAdminSession();
   const { data } = await sb
     .from("slots")
-    .select("id, start_time, coach_name, capacity, reservations(id, status, waiting_order, member:members(id, name, phone, created_at))")
-    .eq("date", date)
+    .select("id, date, start_time, coach_name, capacity, reservations(id, status, waiting_order, member:members(id, name, phone, created_at))")
+    .gte("date", from)
+    .lte("date", to)
+    .order("date")
     .order("start_time");
   const today = todayKST();
   return (data ?? []).map((s: any) => {
@@ -22,6 +26,7 @@ export async function adminDaySlots(date: string) {
     });
     return {
       id: s.id,
+      date: s.date,
       start_time: s.start_time,
       coach_name: s.coach_name,
       capacity: s.capacity,
@@ -29,25 +34,6 @@ export async function adminDaySlots(date: string) {
       waiting: rs.filter((r) => r.status === "waiting").sort((a, b) => a.waiting_order - b.waiting_order).map(norm),
     };
   });
-}
-
-// 관리자 캘린더용: 기간 내 슬롯이 있는 날짜와, 예약이 있는 날짜
-export async function adminMonthOverview(from: string, to: string) {
-  const sb = await supabaseAdminSession();
-  const { data } = await sb
-    .from("slots")
-    .select("date, reservations(status)")
-    .gte("date", from)
-    .lte("date", to);
-  const slotDates = new Set<string>();
-  const booked = new Set<string>();
-  for (const s of (data ?? []) as any[]) {
-    slotDates.add(s.date);
-    if ((s.reservations ?? []).some((r: any) => ["reserved", "attended", "waiting"].includes(r.status))) {
-      booked.add(s.date);
-    }
-  }
-  return { slotDates: [...slotDates], booked: [...booked] };
 }
 
 export async function adminMembers() {
