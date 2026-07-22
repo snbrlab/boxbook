@@ -1,15 +1,16 @@
 "use client";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createMember, extendMembership, toggleMemberActive, updateMember } from "@/app/actions/admin";
+import { createMember, toggleMemberActive, updateMember } from "@/app/actions/admin";
 import { SignaturePad } from "@/components/SignaturePad";
 import { RecurringDialog } from "@/components/admin/RecurringDialog";
+import { MembershipDialog } from "@/components/admin/MembershipDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 
 type Member = {
   id: string; name: string; phone: string; is_active: boolean; isNew: boolean;
@@ -17,7 +18,7 @@ type Member = {
   recurring: { day_of_week: number; start_time: string }[];
   active: { end_date: string; weekly_limit: number } | null;
   daysLeft: number | null;
-  history: { start_date: string; end_date: string; weekly_limit: number; payment_memo: string | null }[];
+  history: { id: string; start_date: string; end_date: string; weekly_limit: number; payment_memo: string | null }[];
 };
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -102,7 +103,7 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
                   <span className="text-xs text-muted-foreground">{m.phone}</span>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <Button size="sm" variant="outline" onClick={() => setExtendFor(m)}>연장</Button>
+                  <Button size="sm" variant="outline" onClick={() => setExtendFor(m)}>이용권</Button>
                   <Button size="sm" variant="ghost" onClick={() => setRecurFor(m)}>고정</Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditFor(m)}>수정</Button>
                   {m.signature && <Button size="sm" variant="ghost" onClick={() => setViewSig(m)}>서명</Button>}
@@ -158,34 +159,7 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
         </DialogContent>
       </Dialog>
 
-      {/* 이용권 연장: 새 이력 로우를 쌓는다 */}
-      <Dialog open={!!extendFor} onOpenChange={(o) => !o && setExtendFor(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{extendFor?.name} 이용권 연장</DialogTitle></DialogHeader>
-          {extendFor && (
-            <form
-              action={(fd) => start(async () => {
-                const r = await extendMembership(fd);
-                if (r?.error) return void toast.error(r.error);
-                toast.success("이용권을 추가했습니다."); setExtendFor(null);
-              })}
-              className="space-y-3"
-            >
-              <input type="hidden" name="member_id" value={extendFor.id} />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label htmlFor="xsd">시작일</Label><Input id="xsd" type="date" name="start_date" defaultValue={extendFor.active?.end_date ?? today()} required /></div>
-                <div className="space-y-1.5"><Label htmlFor="xed">종료일</Label><Input id="xed" type="date" name="end_date" required /></div>
-              </div>
-              <div className="space-y-1.5"><Label htmlFor="xwl">주간 횟수</Label><Input id="xwl" type="number" name="weekly_limit" min={1} defaultValue={extendFor.active?.weekly_limit ?? 3} required /></div>
-              <div className="space-y-1.5"><Label htmlFor="xpm">결제 메모</Label><Input id="xpm" name="payment_memo" placeholder="3개월 등록 등" /></div>
-              <DialogFooter>
-                <DialogClose render={<Button type="button" variant="ghost" />}>취소</DialogClose>
-                <Button type="submit" disabled={busy}>추가</Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+      <MembershipDialog member={extendFor} onClose={() => setExtendFor(null)} />
 
       <RecurringDialog member={recurFor} onClose={() => setRecurFor(null)} />
 

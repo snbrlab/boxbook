@@ -31,12 +31,31 @@ export async function adminDaySlots(date: string) {
   });
 }
 
+// 관리자 캘린더용: 기간 내 슬롯이 있는 날짜와, 예약이 있는 날짜
+export async function adminMonthOverview(from: string, to: string) {
+  const sb = await supabaseAdminSession();
+  const { data } = await sb
+    .from("slots")
+    .select("date, reservations(status)")
+    .gte("date", from)
+    .lte("date", to);
+  const slotDates = new Set<string>();
+  const booked = new Set<string>();
+  for (const s of (data ?? []) as any[]) {
+    slotDates.add(s.date);
+    if ((s.reservations ?? []).some((r: any) => ["reserved", "attended", "waiting"].includes(r.status))) {
+      booked.add(s.date);
+    }
+  }
+  return { slotDates: [...slotDates], booked: [...booked] };
+}
+
 export async function adminMembers() {
   const sb = await supabaseAdminSession();
   const today = todayKST();
   const { data } = await sb
     .from("members")
-    .select("id, name, phone, is_active, created_at, signature, agreed_at, membership_histories(start_date, end_date, weekly_limit, payment_memo), member_recurring_slots(day_of_week, start_time, is_active)")
+    .select("id, name, phone, is_active, created_at, signature, agreed_at, membership_histories(id, start_date, end_date, weekly_limit, payment_memo), member_recurring_slots(day_of_week, start_time, is_active)")
     .order("created_at", { ascending: false });
   return (data ?? []).map((m: any) => {
     const hist = (m.membership_histories ?? []).sort((a: any, b: any) => (a.end_date < b.end_date ? 1 : -1));

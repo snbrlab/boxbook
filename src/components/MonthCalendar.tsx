@@ -10,10 +10,12 @@ type Props = {
   myDates: Map<string, "reserved" | "waiting">; // 내 예약이 있는 날
   onPick: (d: string) => void;
   onMonth: (d: string) => void; // 달 이동 (해당 달의 1일을 넘김)
+  allowPast?: boolean;          // 관리자: 지난 날짜도 조회 가능
+  legend?: { filled: string; hollow: string };
 };
 
 // ponytail: 캘린더 라이브러리 없이 그리드 한 판. 필요한 건 월 이동 + 날짜 선택 + 표시뿐.
-export function MonthCalendar({ date, today, slotDates, myDates, onPick, onMonth }: Props) {
+export function MonthCalendar({ date, today, slotDates, myDates, onPick, onMonth, allowPast, legend }: Props) {
   const first = date.slice(0, 8) + "01";
   const firstDow = new Date(first + "T00:00:00Z").getUTCDay();
   const daysInMonth = new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7), 0)).getUTCDate();
@@ -49,7 +51,7 @@ export function MonthCalendar({ date, today, slotDates, myDates, onPick, onMonth
         {cells.map((d, i) => {
           if (!d) return <div key={`e${i}`} />;
           const day = Number(d.slice(8, 10));
-          const isPast = d < today;
+          const isPast = !allowPast && d < today;
           const hasClass = slotDates.has(d);
           const mine = myDates.get(d);
           const selected = d === date;
@@ -85,8 +87,10 @@ export function MonthCalendar({ date, today, slotDates, myDates, onPick, onMonth
       </div>
 
       <div className="flex gap-3 justify-center text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary" />예약</span>
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full border border-primary" />대기</span>
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary" />{legend?.filled ?? "예약"}</span>
+        {legend?.hollow !== "" && (
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full border border-primary" />{legend?.hollow ?? "대기"}</span>
+        )}
         <span className="text-muted-foreground/60">흐린 날짜 = 수업 없음</span>
       </div>
     </div>

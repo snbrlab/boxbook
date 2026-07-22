@@ -1,17 +1,26 @@
-import Link from "next/link";
-import { adminDaySlots } from "@/lib/admin-data";
-import { todayKST, addDays } from "@/lib/kst";
+import { adminDaySlots, adminMonthOverview } from "@/lib/admin-data";
+import { todayKST } from "@/lib/kst";
 import { AdminSlotCard } from "@/components/admin/AdminSlotCard";
 import { GenerateButton } from "@/components/admin/GenerateButton";
+import { AdminCalendar } from "@/components/admin/AdminCalendar";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const fmtDay = (d: string) => `${d.slice(5, 7)}.${d.slice(8, 10)} (${WD[new Date(d + "T00:00:00Z").getUTCDay()]})`;
 
+function monthRange(date: string) {
+  const from = date.slice(0, 8) + "01";
+  const d = new Date(from + "T00:00:00Z");
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  d.setUTCDate(0);
+  return { from, to: d.toISOString().slice(0, 10) };
+}
+
 export default async function AdminTimeslots({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const today = todayKST();
   const date = (await searchParams).date ?? today;
-  const slots = await adminDaySlots(date);
-  const strip = Array.from({ length: 21 }, (_, i) => addDays(today, i));
+  const { from, to } = monthRange(date);
+
+  const [slots, overview] = await Promise.all([adminDaySlots(date), adminMonthOverview(from, to)]);
 
   return (
     <div className="space-y-4">
@@ -20,21 +29,11 @@ export default async function AdminTimeslots({ searchParams }: { searchParams: P
         <GenerateButton />
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {strip.map((d) => (
-          <Link
-            key={d}
-            href={`/admin?date=${d}`}
-            className={`shrink-0 rounded-lg px-3 py-2 text-xs border ${
-              d === date ? "bg-primary text-primary-foreground border-primary" : ""
-            }`}
-          >
-            {fmtDay(d)}
-          </Link>
-        ))}
-      </div>
+      <AdminCalendar date={date} today={today} slotDates={overview.slotDates} booked={overview.booked} />
 
-      {slots.length === 0 && <p className="text-sm text-muted-foreground py-8 text-center">이 날은 생성된 슬롯이 없습니다.</p>}
+      {slots.length === 0 && (
+        <p className="text-sm text-muted-foreground py-8 text-center">이 날은 생성된 슬롯이 없습니다.</p>
+      )}
       {slots.map((s) => (
         <AdminSlotCard key={s.id} slot={s} />
       ))}

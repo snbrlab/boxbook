@@ -145,6 +145,36 @@ export async function extendMembership(form: FormData) {
   return { ok: true };
 }
 
+// 이용권 수정: 잘못 입력한 값을 바로잡는 용도.
+// 기간을 늘리려면 extendMembership으로 새 이력을 쌓아야 이전 조건이 기록에 남는다.
+export async function updateMembership(form: FormData) {
+  const sb = await db();
+  const start_date = String(form.get("start_date"));
+  const end_date = String(form.get("end_date"));
+  if (end_date < start_date) return { error: "종료일이 시작일보다 빠릅니다." };
+
+  const { error } = await sb
+    .from("membership_histories")
+    .update({
+      start_date,
+      end_date,
+      weekly_limit: Number(form.get("weekly_limit")),
+      payment_memo: String(form.get("payment_memo") ?? "") || null,
+    })
+    .eq("id", String(form.get("membership_id")));
+  if (error) return { error: error.message };
+  revalidatePath("/admin/members");
+  return { ok: true };
+}
+
+export async function deleteMembership(id: string) {
+  const sb = await db();
+  const { error } = await sb.from("membership_histories").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/members");
+  return { ok: true };
+}
+
 // ── 출석/상태 (관리자 수동) ──────────────────────────────
 export async function setAttendance(reservationId: string, status: "attended" | "noshow" | "reserved") {
   await (await db()).from("reservations").update({ status }).eq("id", reservationId);
