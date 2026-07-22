@@ -24,9 +24,5 @@ export function supabaseAsMember(memberJwt: string) {
   });
 }
 
-// service_role: RLS 우회. Cron 등 서버 전용 경로에서만. 절대 클라이언트로 내보내지 않는다.
-export function supabaseService() {
-  return createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
+// service_role은 service.ts에 있다 (middleware에서도 쓰려면 next/headers 의존이 없어야 함)
+export { supabaseService, isAdminUser } from "./service";

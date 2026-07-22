@@ -1,7 +1,8 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { supabaseAdminSession, supabaseService } from "@/lib/supabase/clients";
+import { supabaseAdminSession } from "@/lib/supabase/clients";
+import { supabaseService, isAdminUser } from "@/lib/supabase/service";
 
 async function db() {
   return supabaseAdminSession();
@@ -12,8 +13,7 @@ async function requireAdmin() {
   const sb = await db();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) throw new Error("unauthorized");
-  const { data } = await sb.from("admins").select("id").eq("id", user.id).maybeSingle();
-  if (!data) throw new Error("unauthorized");
+  if (!(await isAdminUser(user.id))) throw new Error("unauthorized");
   return user.id;
 }
 
@@ -24,8 +24,8 @@ export async function adminLogin(_prev: unknown, form: FormData) {
   const sb = await db();
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error || !data.user) return { error: "이메일 또는 비밀번호가 올바르지 않습니다." };
-  const { data: admin } = await sb.from("admins").select("id").eq("id", data.user.id).maybeSingle();
-  if (!admin) {
+  // RLS 조회는 로그인 직후 세션 타이밍 때문에 신뢰할 수 없다 → service_role로 확정 판정
+  if (!(await isAdminUser(data.user.id))) {
     await sb.auth.signOut();
     return { error: "관리자 권한이 없는 계정입니다." };
   }

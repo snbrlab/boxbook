@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isAdminUser } from "@/lib/supabase/service";
 
 // /admin/* 보호. 관리자 판정은 서버에서: Supabase Auth 세션 + admins 테이블 존재 확인.
 export async function middleware(req: NextRequest) {
@@ -18,8 +19,8 @@ export async function middleware(req: NextRequest) {
   );
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(new URL("/admin/login", req.url));
-  const { data: admin } = await supabase.from("admins").select("id").eq("id", user.id).maybeSingle();
-  if (!admin) return NextResponse.redirect(new URL("/admin/login", req.url));
+  // 관리자 판정은 service_role로 (RLS/세션 타이밍에 흔들리지 않게)
+  if (!(await isAdminUser(user.id))) return NextResponse.redirect(new URL("/admin/login", req.url));
   return res;
 }
 
