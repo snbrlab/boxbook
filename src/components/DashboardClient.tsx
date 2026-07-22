@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { reserveSlot, cancelReservation, logoutMember } from "@/app/actions/member";
 import type { SlotView, MyReservation } from "@/lib/member-data";
-import { addDays } from "@/lib/kst";
+import { MonthCalendar } from "@/components/MonthCalendar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,8 @@ type Props = {
   reservedToday: boolean;
   mine: MyReservation[];
   settings: { penalty_enabled: boolean; penalty_hours: number };
+  slotDates: string[];
+  usage: { used: number; weekly_limit: number } | null;
 };
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -56,9 +58,6 @@ export default function DashboardClient(p: Props) {
       toast.success("취소되었습니다.");
     });
 
-  // 날짜 스트립: 오늘부터 21일
-  const strip = Array.from({ length: 21 }, (_, i) => addDays(p.today, i));
-
   return (
     <main className="max-w-md mx-auto p-4 pb-24 space-y-4">
       <header className="flex items-center justify-between">
@@ -81,6 +80,14 @@ export default function DashboardClient(p: Props) {
           ) : (
             <span className="text-red-500">유효한 회원권이 없습니다. 관장님께 문의하세요.</span>
           )}
+          {p.usage && (
+            <div className="text-xs text-muted-foreground mt-1">
+              이번 주 <b className={p.usage.used >= p.usage.weekly_limit ? "text-amber-600" : ""}>
+                {p.usage.used}/{p.usage.weekly_limit}회
+              </b> 사용
+              {p.usage.used >= p.usage.weekly_limit && " · 이번 주 예약을 모두 사용했습니다"}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -91,19 +98,16 @@ export default function DashboardClient(p: Props) {
         </TabsList>
 
         <TabsContent value="book" className="space-y-3">
-          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
-            {strip.map((d) => (
-              <button
-                key={d}
-                onClick={() => go(d)}
-                className={`shrink-0 rounded-lg px-3 py-2 text-xs border ${
-                  d === p.date ? "bg-primary text-primary-foreground border-primary" : "bg-background"
-                }`}
-              >
-                {fmtDay(d)}
-              </button>
-            ))}
-          </div>
+          <MonthCalendar
+            date={p.date}
+            today={p.today}
+            slotDates={new Set(p.slotDates)}
+            myDates={new Map(p.mine.map((r) => [r.date, r.status]))}
+            onPick={go}
+            onMonth={go}
+          />
+
+          <div className="text-sm font-semibold pt-1">{fmtDay(p.date)} 수업</div>
 
           {p.settings.penalty_enabled && (
             <p className="text-xs text-muted-foreground">

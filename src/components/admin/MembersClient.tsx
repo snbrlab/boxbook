@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createMember, extendMembership, toggleMemberActive, updateMember } from "@/app/actions/admin";
 import { SignaturePad } from "@/components/SignaturePad";
+import { RecurringDialog } from "@/components/admin/RecurringDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,10 +14,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 type Member = {
   id: string; name: string; phone: string; is_active: boolean; isNew: boolean;
   signature: string | null; agreed_at: string | null;
+  recurring: { day_of_week: number; start_time: string }[];
   active: { end_date: string; weekly_limit: number } | null;
   daysLeft: number | null;
   history: { start_date: string; end_date: string; weekly_limit: number; payment_memo: string | null }[];
 };
+
+const WD = ["일", "월", "화", "수", "목", "금", "토"];
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
 const plusMonths = (n: number) => {
@@ -31,6 +35,7 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
   const [extendFor, setExtendFor] = useState<Member | null>(null);
   const [editFor, setEditFor] = useState<Member | null>(null);
   const [viewSig, setViewSig] = useState<Member | null>(null);
+  const [recurFor, setRecurFor] = useState<Member | null>(null);
 
   return (
     <div className="space-y-4">
@@ -98,6 +103,7 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <Button size="sm" variant="outline" onClick={() => setExtendFor(m)}>연장</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRecurFor(m)}>고정</Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditFor(m)}>수정</Button>
                   {m.signature && <Button size="sm" variant="ghost" onClick={() => setViewSig(m)}>서명</Button>}
                 </div>
@@ -111,6 +117,12 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
                   <span className="text-red-500">유효 회원권 없음</span>
                 )}
                 {m.history.length > 1 && <span> · 이력 {m.history.length}건</span>}
+                {m.recurring.length > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    고정: {[...new Set(m.recurring.map((r) => WD[r.day_of_week]))].join("·")}{" "}
+                    {[...new Set(m.recurring.map((r) => r.start_time))].join(", ")}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -174,6 +186,8 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
           )}
         </DialogContent>
       </Dialog>
+
+      <RecurringDialog member={recurFor} onClose={() => setRecurFor(null)} />
 
       {/* 서명 보기 */}
       <Dialog open={!!viewSig} onOpenChange={(o) => !o && setViewSig(null)}>

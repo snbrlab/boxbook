@@ -97,6 +97,22 @@ export async function updateMember(form: FormData) {
   return { ok: true };
 }
 
+// ── 고정 수업 (정기 예약) ────────────────────────────
+// 기존 설정을 통째로 교체한다. 요일×시간 조합을 그대로 저장.
+export async function setRecurring(memberId: string, days: number[], times: string[]) {
+  const sb = await db();
+  await sb.from("member_recurring_slots").delete().eq("member_id", memberId);
+  if (days.length === 0 || times.length === 0) {
+    revalidatePath("/admin/members");
+    return { ok: true, count: 0 };
+  }
+  const rows = days.flatMap((d) => times.map((t) => ({ member_id: memberId, day_of_week: d, start_time: t })));
+  const { error } = await sb.from("member_recurring_slots").insert(rows);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/members");
+  return { ok: true, count: rows.length };
+}
+
 // 나중에 서명을 다시 받는 경우 (등록 때 안 받았거나 규정이 바뀐 경우)
 export async function saveSignature(memberId: string, signature: string) {
   const sb = await db();
@@ -203,9 +219,13 @@ export async function deleteSlot(id: string) {
 // 관리자 확인 후 service_role로 실행한다.
 export async function generateSlots(from: string, to: string) {
   await requireAdmin();
-  const { data, error } = await supabaseService().rpc("generate_slots", { p_from: from, p_to: to });
+  const svc = supabaseService();
+  const { data, error } = await svc.rpc("generate_slots", { p_from: from, p_to: to });
+  if (error) return { error: error.message };
+  // 생성 직후 고정 수업 자동 예약까지 함께 (Cron과 동일 동작)
+  const { data: auto } = await svc.rpc("auto_reserve_recurring", { p_from: from, p_to: to });
   revalidatePath("/admin");
-  return error ? { error: error.message } : { inserted: data };
+  return { inserted: data, autoReserved: auto ?? 0 };
 }
 
 // ── 관리자 관리 ────────────────────────────────────────

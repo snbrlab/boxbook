@@ -47,6 +47,21 @@ export function hasReservationThatDay(slots: SlotView[]): boolean {
   return slots.some((s) => s.my_status === "reserved");
 }
 
+// 캘린더에 "수업 있는 날"을 표시하기 위한 날짜 목록
+export async function getSlotDates(jwt: string, from: string, to: string): Promise<string[]> {
+  const sb = supabaseAsMember(jwt);
+  const { data } = await sb.from("slots").select("date").gte("date", from).lte("date", to);
+  return [...new Set((data ?? []).map((r: any) => r.date))];
+}
+
+// 이번 주 사용량. 범위 계산은 reserve_slot과 동일한 로직을 RPC가 담당한다(중복 구현 금지).
+export async function getWeeklyUsage(jwt: string, date: string) {
+  const sb = supabaseAsMember(jwt);
+  const { data } = await sb.rpc("my_weekly_usage", { p_date: date });
+  const row = (data ?? [])[0] as { used: number; weekly_limit: number } | undefined;
+  return row ?? null;
+}
+
 export async function getSettings(jwt: string) {
   const sb = supabaseAsMember(jwt);
   const { data } = await sb.from("gym_settings").select("penalty_enabled, penalty_hours").eq("id", 1).maybeSingle();

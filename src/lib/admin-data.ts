@@ -36,7 +36,7 @@ export async function adminMembers() {
   const today = todayKST();
   const { data } = await sb
     .from("members")
-    .select("id, name, phone, is_active, created_at, signature, agreed_at, membership_histories(start_date, end_date, weekly_limit, payment_memo)")
+    .select("id, name, phone, is_active, created_at, signature, agreed_at, membership_histories(start_date, end_date, weekly_limit, payment_memo), member_recurring_slots(day_of_week, start_time, is_active)")
     .order("created_at", { ascending: false });
   return (data ?? []).map((m: any) => {
     const hist = (m.membership_histories ?? []).sort((a: any, b: any) => (a.end_date < b.end_date ? 1 : -1));
@@ -48,6 +48,9 @@ export async function adminMembers() {
       is_active: m.is_active,
       signature: m.signature ?? null,
       agreed_at: m.agreed_at ?? null,
+      recurring: ((m.member_recurring_slots ?? []) as any[])
+        .filter((r) => r.is_active)
+        .map((r) => ({ day_of_week: r.day_of_week, start_time: String(r.start_time).slice(0, 5) })),
       isNew: daysBetween(m.created_at.slice(0, 10), today) <= 7,
       active,
       daysLeft: active ? daysBetween(today, active.end_date) : null,

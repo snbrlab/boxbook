@@ -10,10 +10,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const today = todayKST();
-  const { data, error } = await supabaseService().rpc("generate_slots", {
-    p_from: addDays(today, 14),
-    p_to: addDays(today, 21),
-  });
+  const from = addDays(today, 14);
+  const to = addDays(today, 21);
+  const svc = supabaseService();
+
+  const { data: inserted, error } = await svc.rpc("generate_slots", { p_from: from, p_to: to });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ inserted: data, range: [addDays(today, 14), addDays(today, 21)] });
+
+  // 새로 생긴 슬롯에 고정 수업을 자동 예약 (예약 규칙은 reserve_slot이 그대로 검사)
+  const { data: reserved, error: rErr } = await svc.rpc("auto_reserve_recurring", { p_from: from, p_to: to });
+  if (rErr) return NextResponse.json({ inserted, autoReserveError: rErr.message }, { status: 500 });
+
+  return NextResponse.json({ inserted, autoReserved: reserved, range: [from, to] });
 }

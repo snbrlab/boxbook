@@ -18,8 +18,8 @@ export function GenerateButton() {
       onClick={() =>
         start(async () => {
           const r = await generateSlots(today, to.toISOString().slice(0, 10));
-          if ("error" in r) toast.error(r.error);
-          else toast.success(`슬롯 ${r.inserted}개 생성`);
+          if ("error" in r) toast.error(r.error as string);
+          else toast.success(`슬롯 ${r.inserted}개 생성 · 고정 수업 ${r.autoReserved}건 예약`);
         })
       }
     >
