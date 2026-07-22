@@ -1,5 +1,6 @@
-import { adminSettings, adminList } from "@/lib/admin-data";
+import { adminSettings, adminList, adminHours } from "@/lib/admin-data";
 import { AdminsCard } from "@/components/admin/AdminsCard";
+import { HoursCard } from "@/components/admin/HoursCard";
 import { saveSettings } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function SettingsPage() {
-  const [s, { me, admins }] = await Promise.all([adminSettings(), adminList()]);
+  const [s, { me, admins }, hours] = await Promise.all([adminSettings(), adminList(), adminHours()]);
   return (
     <div className="space-y-4">
     <Card className="max-w-md">
@@ -34,19 +35,6 @@ export default async function SettingsPage() {
             </div>
             <input type="checkbox" name="noshow_counts" defaultChecked={s.noshow_counts} className="h-5 w-5" />
           </label>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ht">운영시간</Label>
-            <textarea
-              id="ht"
-              name="hours_text"
-              rows={3}
-              defaultValue={s.hours_text ?? ""}
-              placeholder={"예)\n평일 06:00 ~ 23:00\n토요일 09:00 ~ 18:00\n일요일 휴무"}
-              className="w-full rounded-lg border bg-transparent p-2 text-sm"
-            />
-            <p className="text-xs text-muted-foreground">수업 시간표와 별개로, 체육관 운영시간을 회원 화면에 안내합니다.</p>
-          </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="nt">공지사항</Label>
@@ -83,6 +71,7 @@ export default async function SettingsPage() {
       </CardContent>
     </Card>
 
+    <HoursCard hours={hours} />
     <AdminsCard me={me} admins={admins} />
     </div>
   );

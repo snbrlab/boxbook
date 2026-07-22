@@ -126,8 +126,10 @@ export async function saveSignature(memberId: string, signature: string) {
 }
 
 export async function toggleMemberActive(id: string, is_active: boolean) {
-  await (await db()).from("members").update({ is_active }).eq("id", id);
+  const { error } = await (await db()).from("members").update({ is_active }).eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/admin/members");
+  return { ok: true };
 }
 
 // 이용권 연장: 덮어쓰지 않고 새 이력 로우를 쌓는다 (원칙 4)
@@ -177,8 +179,10 @@ export async function deleteMembership(id: string) {
 
 // ── 출석/상태 (관리자 수동) ──────────────────────────────
 export async function setAttendance(reservationId: string, status: "attended" | "noshow" | "reserved") {
-  await (await db()).from("reservations").update({ status }).eq("id", reservationId);
+  const { error } = await (await db()).from("reservations").update({ status }).eq("id", reservationId);
+  if (error) return { error: error.message };
   revalidatePath("/admin");
+  return { ok: true };
 }
 
 // ── 주간 시간표 (slot_templates) ────────────────────────
@@ -219,19 +223,28 @@ export async function addTemplate(form: FormData) {
 // 시간표 항목 폐기: 덮어쓰지 않고 닫는다 (is_active=false + effective_until=오늘). 새 값은 addTemplate로.
 export async function closeTemplate(id: string) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
-  await (await db()).from("slot_templates").update({ is_active: false, effective_until: today }).eq("id", id);
+  const { error } = await (await db())
+    .from("slot_templates").update({ is_active: false, effective_until: today }).eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/admin/schedule");
+  return { ok: true };
 }
 
 // ── 휴관일 ────────────────────────────────────────────
 export async function addClosedDate(form: FormData) {
   const sb = await db();
-  await sb.from("closed_dates").upsert({ date: String(form.get("date")), reason: String(form.get("reason") ?? "") });
+  const { error } = await sb
+    .from("closed_dates")
+    .upsert({ date: String(form.get("date")), reason: String(form.get("reason") ?? "") || null });
+  if (error) return { error: error.message };
   revalidatePath("/admin/schedule");
+  return { ok: true };
 }
 export async function removeClosedDate(date: string) {
-  await (await db()).from("closed_dates").delete().eq("date", date);
+  const { error } = await (await db()).from("closed_dates").delete().eq("date", date);
+  if (error) return { error: error.message };
   revalidatePath("/admin/schedule");
+  return { ok: true };
 }
 
 // ── 개별 슬롯 예외 ──────────────────────────────────────
@@ -241,14 +254,30 @@ export async function updateSlot(id: string, patch: { coach_name?: string; capac
 }
 // 수업 ↔ 자율운동 전환. 예약 규칙은 동일하게 적용되므로 표시만 달라진다.
 export async function toggleOpenGym(id: string, is_open_gym: boolean) {
-  await (await db()).from("slots").update({ is_open_gym }).eq("id", id);
+  const { error } = await (await db()).from("slots").update({ is_open_gym }).eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/admin");
+  return { ok: true };
 }
 
-// 예약자 있는 슬롯 삭제는 UI에서 확인 절차를 거친 뒤 호출 (cascade로 예약도 삭제)
+// 슬롯 취소. 행을 지우면 generate_slots가 같은 슬롯을 다시 만들어버리므로
+// 취소 표시만 하고 행은 남긴다(유니크 제약이 재생성을 막는다). 실수해도 복구 가능.
 export async function deleteSlot(id: string) {
-  await (await db()).from("slots").delete().eq("id", id);
+  const sb = await db();
+  const { error } = await sb.from("slots").update({ is_cancelled: true }).eq("id", id);
+  if (error) return { error: error.message };
+  // 해당 슬롯의 살아있는 예약도 함께 취소
+  await sb.from("reservations").update({ status: "cancelled", waiting_order: null })
+    .eq("slot_id", id).in("status", ["reserved", "waiting"]);
   revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function restoreSlot(id: string) {
+  const { error } = await (await db()).from("slots").update({ is_cancelled: false }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
 }
 
 // 수동 슬롯 생성 트리거 (보충용). generate_slots는 authenticated에서 revoke되어 있으므로
@@ -301,6 +330,63 @@ export async function removeAdmin(id: string) {
   return { ok: true };
 }
 
+// ── 운영시간 (요일별) ─────────────────────────────────
+export async function saveHours(form: FormData) {
+  const sb = await db();
+  const rows = Array.from({ length: 7 }, (_, d) => ({
+    day_of_week: d,
+    is_closed: form.get(`closed_${d}`) === "on",
+    open_time: String(form.get(`open_${d}`) ?? "") || null,
+    close_time: String(form.get(`close_${d}`) ?? "") || null,
+  }));
+  const { error } = await sb.from("gym_hours").upsert(rows, { onConflict: "day_of_week" });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+// ── 회원 일괄 등록 (종이 명부 이관) ──────────────────────
+// 한 줄에 한 명: 이름,전화번호[,시작일,종료일,주간횟수,메모]
+// 전부 성공하거나 전부 실패하는 대신, 줄 단위로 결과를 돌려준다 —
+// 명부 이관은 오타가 섞이기 마련이라 되는 것부터 들어가는 편이 낫다.
+export async function bulkImportMembers(text: string) {
+  const sb = await db();
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const failed: { line: string; reason: string }[] = [];
+  let added = 0;
+
+  for (const line of lines) {
+    const [name, phone, start_date, end_date, weekly, ...memo] = line.split(/[,\t]/).map((c) => c.trim());
+    if (!name || !phone) {
+      failed.push({ line, reason: "이름 또는 전화번호 없음" });
+      continue;
+    }
+    const { data: member, error } = await sb
+      .from("members").insert({ name, phone }).select("id").single();
+    if (error) {
+      failed.push({ line, reason: error.message.includes("duplicate") ? "이미 등록된 회원" : error.message });
+      continue;
+    }
+    if (start_date && end_date) {
+      const { error: mhErr } = await sb.from("membership_histories").insert({
+        member_id: member.id,
+        start_date,
+        end_date,
+        weekly_limit: Number(weekly) || 3,
+        payment_memo: memo.join(",") || null,
+      });
+      if (mhErr) {
+        await sb.from("members").delete().eq("id", member.id);
+        failed.push({ line, reason: `이용권: ${mhErr.message}` });
+        continue;
+      }
+    }
+    added++;
+  }
+  revalidatePath("/admin/members");
+  return { added, failed };
+}
+
 // ── 설정 ──────────────────────────────────────────────
 export async function saveSettings(form: FormData) {
   const sb = await db();
@@ -310,7 +396,6 @@ export async function saveSettings(form: FormData) {
     penalty_hours: Number(form.get("penalty_hours")),
     noshow_counts: form.get("noshow_counts") === "on",
     rules_text: String(form.get("rules_text") ?? "") || null,
-    hours_text: String(form.get("hours_text") ?? "").trim() || null,
     notice_text: notice || null,
     notice_updated_at: notice ? new Date().toISOString() : null,
   }).eq("id", 1);

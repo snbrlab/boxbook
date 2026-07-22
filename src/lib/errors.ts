@@ -9,6 +9,10 @@ const MESSAGES: Record<string, string> = {
   PAST_SLOT: "지난 수업은 예약할 수 없습니다.",
   MEMBER_INACTIVE: "비활성화된 회원입니다.",
   NOT_CANCELLABLE: "취소할 수 없는 예약입니다.",
+  SLOT_CANCELLED: "취소된 수업입니다.",
+  NOT_TODAY: "수업 당일에만 출석할 수 있습니다.",
+  TOO_EARLY: "수업 시작 1시간 전부터 출석할 수 있습니다.",
+  NOT_CHECKABLE: "출석 처리할 수 없는 예약입니다.",
   RESERVATION_NOT_FOUND: "예약을 찾을 수 없습니다.",
   // 부분 유니크 인덱스 위반
   "23505": "이미 신청한 수업입니다.",

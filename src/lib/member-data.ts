@@ -24,7 +24,7 @@ export async function getMonthSlots(jwt: string, from: string, to: string): Prom
   const sb = supabaseAsMember(jwt);
   const [{ data: slots }, { data: counts, error: cErr }, { data: mine }] = await Promise.all([
     sb.from("slots").select("id, date, start_time, coach_name, capacity, is_open_gym")
-      .gte("date", from).lte("date", to).order("date").order("start_time"),
+      .eq("is_cancelled", false).gte("date", from).lte("date", to).order("date").order("start_time"),
     sb.rpc("slot_counts_range", { p_from: from, p_to: to }),
     // RLS로 내 예약만 반환됨. 지난 수업의 출석 여부를 보려면 attended/noshow도 필요하다.
     sb.from("reservations").select("id, slot_id, status, waiting_order")
@@ -54,6 +54,13 @@ export async function getMonthSlots(jwt: string, from: string, to: string): Prom
   });
 }
 
+// 운영시간 (요일별)
+export async function getHours(jwt: string) {
+  const sb = supabaseAsMember(jwt);
+  const { data } = await sb.from("gym_hours").select("*").order("day_of_week");
+  return (data ?? []) as { day_of_week: number; open_time: string | null; close_time: string | null; is_closed: boolean }[];
+}
+
 // 캘린더에 "수업 있는 날"을 표시하기 위한 날짜 목록
 export async function getSlotDates(jwt: string, from: string, to: string): Promise<string[]> {
   const sb = supabaseAsMember(jwt);
@@ -71,9 +78,9 @@ export async function getWeeklyUsage(jwt: string, date: string) {
 
 export async function getSettings(jwt: string) {
   const sb = supabaseAsMember(jwt);
-  const { data } = await sb.from("gym_settings").select("penalty_enabled, penalty_hours, notice_text, notice_updated_at, hours_text").eq("id", 1).maybeSingle();
-  return (data as { penalty_enabled: boolean; penalty_hours: number; notice_text: string | null; notice_updated_at: string | null; hours_text: string | null } | null)
-    ?? { penalty_enabled: true, penalty_hours: 2, notice_text: null, notice_updated_at: null, hours_text: null };
+  const { data } = await sb.from("gym_settings").select("penalty_enabled, penalty_hours, notice_text, notice_updated_at").eq("id", 1).maybeSingle();
+  return (data as { penalty_enabled: boolean; penalty_hours: number; notice_text: string | null; notice_updated_at: string | null } | null)
+    ?? { penalty_enabled: true, penalty_hours: 2, notice_text: null, notice_updated_at: null };
 }
 
 export type MyReservation = {

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import { reserveSlot, cancelReservation, logoutMember } from "@/app/actions/member";
+import { reserveSlot, cancelReservation, checkIn, logoutMember } from "@/app/actions/member";
 import type { SlotView, MyReservation } from "@/lib/member-data";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,9 @@ type Props = {
   membership: { end_date: string; daysLeft: number } | null;
   monthSlots: SlotView[];
   mine: MyReservation[];
-  settings: { penalty_enabled: boolean; penalty_hours: number; notice_text: string | null; notice_updated_at: string | null; hours_text: string | null };
+  settings: { penalty_enabled: boolean; penalty_hours: number; notice_text: string | null; notice_updated_at: string | null };
   usage: { used: number; weekly_limit: number } | null;
+  hours: { day_of_week: number; open_time: string | null; close_time: string | null; is_closed: boolean }[];
 };
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -55,6 +56,13 @@ export default function DashboardClient(p: Props) {
       toast.success(r.status === "reserved" ? "예약 완료!" : `대기 신청 완료 (대기 ${r.waiting_order}번)`);
     });
 
+  const onCheckIn = (id: string) =>
+    start(async () => {
+      const r = await checkIn(id);
+      if (!r.ok) return void toast.error(r.error);
+      toast.success("출석 완료!");
+    });
+
   const onCancel = (id: string) =>
     start(async () => {
       const r = await cancelReservation(id);
@@ -83,11 +91,26 @@ export default function DashboardClient(p: Props) {
         </Card>
       )}
 
-      {p.settings.hours_text && (
+      {p.hours.length > 0 && (
         <Card>
           <CardContent className="py-3">
-            <div className="text-xs font-semibold text-muted-foreground mb-1">🕒 운영시간</div>
-            <p className="text-sm whitespace-pre-wrap">{p.settings.hours_text}</p>
+            <div className="text-xs font-semibold text-muted-foreground mb-1.5">🕒 운영시간</div>
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px]">
+              {p.hours.map((h) => (
+                <div key={h.day_of_week}>
+                  <div className={h.day_of_week === 0 ? "text-red-500" : h.day_of_week === 6 ? "text-blue-500" : ""}>
+                    {WD[h.day_of_week]}
+                  </div>
+                  <div className="text-muted-foreground mt-0.5 leading-tight">
+                    {h.is_closed || !h.open_time || !h.close_time ? (
+                      <span className="text-muted-foreground/60">휴무</span>
+                    ) : (
+                      <>{fmtTime(h.open_time)}<br />{fmtTime(h.close_time)}</>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -171,13 +194,21 @@ export default function DashboardClient(p: Props) {
                     {isPast ? (
                       mineHere === "attended" ? (
                         <Badge>출석</Badge>
-                      ) : mineHere === "noshow" ? (
-                        <Badge variant="destructive">노쇼</Badge>
+                      ) : mineHere === "noshow" || mineHere === "reserved" ? (
+                        // 출석을 누르지 않은 채 지난 예약은 미출석으로 본다
+                        <Badge variant="destructive">미출석</Badge>
                       ) : mineHere ? (
                         <Badge variant="secondary">예약함</Badge>
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
                       )
+                    ) : mineHere === "attended" ? (
+                      <Badge>출석 완료</Badge>
+                    ) : date === p.today && mineHere === "reserved" ? (
+                      <div className="flex gap-1">
+                        <Button size="sm" disabled={busy} onClick={() => onCheckIn(s.my_reservation_id!)}>출석</Button>
+                        <Button variant="outline" size="sm" disabled={busy} onClick={() => onCancel(s.my_reservation_id!)}>취소</Button>
+                      </div>
                     ) : mineHere === "reserved" || mineHere === "waiting" ? (
                       <Button variant="outline" size="sm" disabled={busy} onClick={() => onCancel(s.my_reservation_id!)}>
                         {mineHere === "reserved" ? "예약 취소" : "대기 취소"}

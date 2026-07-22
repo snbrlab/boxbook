@@ -59,6 +59,17 @@ export async function reserveSlot(slotId: string): Promise<Result> {
   return { ok: true, status: data.status, waiting_order: data.waiting_order };
 }
 
+// 셀프 출석. 수업 당일 시작 1시간 전부터 가능 (판정은 RPC가 KST로).
+export async function checkIn(reservationId: string): Promise<Result> {
+  const s = await getMemberSession();
+  if (!s) return { ok: false, error: "로그인이 필요합니다." };
+  const supabase = supabaseAsMember(s.jwt);
+  const { data, error } = await supabase.rpc("check_in", { p_reservation_id: reservationId });
+  if (error) return { ok: false, error: rpcMessage(error) };
+  revalidatePath("/");
+  return { ok: true, status: data.status };
+}
+
 export async function cancelReservation(reservationId: string): Promise<Result> {
   const s = await getMemberSession();
   if (!s) return { ok: false, error: "로그인이 필요합니다." };
