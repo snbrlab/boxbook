@@ -12,7 +12,13 @@ export function supabaseService() {
 
 // 관리자 판정의 단일 진실. RLS/세션 타이밍에 영향받지 않도록 service_role로 확정 조회한다.
 // (로그인 직후에는 새 세션 쿠키가 아직 안 읽혀 anon으로 나가는 경우가 있어 RLS 조회는 신뢰할 수 없다)
+//
+// 설정 오류(키 누락/오타)를 "관리자 아님"으로 삼키면 원인 파악이 불가능해지므로,
+// 조회 자체가 실패하면 예외를 던져 권한 없음과 구분한다.
 export async function isAdminUser(userId: string): Promise<boolean> {
-  const { data } = await supabaseService().from("admins").select("id").eq("id", userId).maybeSingle();
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("CONFIG: SUPABASE_SERVICE_ROLE_KEY 미설정");
+  const { data, error } = await supabaseService()
+    .from("admins").select("id").eq("id", userId).maybeSingle();
+  if (error) throw new Error(`CONFIG: admins 조회 실패 — ${error.message}`);
   return !!data;
 }

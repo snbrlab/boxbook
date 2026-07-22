@@ -24,10 +24,20 @@ export async function adminLogin(_prev: unknown, form: FormData) {
   const sb = await db();
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error || !data.user) return { error: "이메일 또는 비밀번호가 올바르지 않습니다." };
+
   // RLS 조회는 로그인 직후 세션 타이밍 때문에 신뢰할 수 없다 → service_role로 확정 판정
-  if (!(await isAdminUser(data.user.id))) {
+  let ok: boolean;
+  try {
+    ok = await isAdminUser(data.user.id);
+  } catch (e) {
+    // 설정 오류를 "권한 없음"으로 숨기지 않는다. 원인을 그대로 보여줘야 고칠 수 있다.
     await sb.auth.signOut();
-    return { error: "관리자 권한이 없는 계정입니다." };
+    return { error: `서버 설정 오류: ${(e as Error).message}` };
+  }
+  if (!ok) {
+    await sb.auth.signOut();
+    // admins에 행이 없다는 뜻. 진단을 위해 uid를 노출한다(관리자 로그인 화면이라 안전).
+    return { error: `admins 테이블에 등록되지 않은 계정입니다. uid=${data.user.id}` };
   }
   redirect("/admin");
 }
