@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getMemberSession } from "@/lib/auth";
 import {
-  getActiveMembership, getMonthSlots, getMyUpcoming, getSettings, getWeeklyUsage, getHours,
+  getActiveMembership, getMonthSlots, getMyUpcoming, getSettings, getWeeklyUsage, getHours, getNotices,
 } from "@/lib/member-data";
 import { todayKST, daysBetween } from "@/lib/kst";
 import DashboardClient from "@/components/DashboardClient";
@@ -27,7 +27,7 @@ export default async function Dashboard({
   const date = (await searchParams).date ?? today;
   const { from, to } = monthRange(date);
 
-  const [membership, monthSlots, mine, settings, usage, hours] = await Promise.all([
+  const [membership, monthSlots, mine, settings, usage, hours, notices] = await Promise.all([
     getActiveMembership(s.jwt, s.memberId),
     getMonthSlots(s.jwt, from, to),
     getMyUpcoming(s.jwt),
@@ -35,6 +35,7 @@ export default async function Dashboard({
     // "이번 주"는 보고 있는 날짜가 아니라 오늘 기준이어야 한다
     getWeeklyUsage(s.jwt, today),
     getHours(s.jwt),
+    getNotices(s.jwt),
   ]);
 
   return (
@@ -51,6 +52,7 @@ export default async function Dashboard({
       settings={settings}
       usage={usage}
       hours={hours}
+      notices={notices}
     />
   );
 }

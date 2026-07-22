@@ -1,7 +1,7 @@
 "use client";
 import { addDays } from "@/lib/kst";
 
-const WD = ["일", "월", "화", "수", "목", "금", "토"];
+import { WD, DOW_ORDER, dowColumn, dowClass } from "@/lib/dow";
 
 type Props = {
   date: string;                 // 선택된 날짜
@@ -17,7 +17,7 @@ type Props = {
 // ponytail: 캘린더 라이브러리 없이 그리드 한 판. 필요한 건 월 이동 + 날짜 선택 + 표시뿐.
 export function MonthCalendar({ date, today, slotDates, myDates, onPick, onMonth, allowPast, legend }: Props) {
   const first = date.slice(0, 8) + "01";
-  const firstDow = new Date(first + "T00:00:00Z").getUTCDay();
+  const firstCol = dowColumn(new Date(first + "T00:00:00Z").getUTCDay());
   const daysInMonth = new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7), 0)).getUTCDate();
 
   const shift = (n: number) => {
@@ -27,7 +27,7 @@ export function MonthCalendar({ date, today, slotDates, myDates, onPick, onMonth
   };
 
   const cells: (string | null)[] = [
-    ...Array(firstDow).fill(null),
+    ...Array(firstCol).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => addDays(first, i)),
   ];
 
@@ -42,9 +42,9 @@ export function MonthCalendar({ date, today, slotDates, myDates, onPick, onMonth
       </div>
 
       <div className="grid grid-cols-7 gap-1 text-center">
-        {WD.map((w, i) => (
-          <div key={w} className={`text-[11px] py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"}`}>
-            {w}
+        {DOW_ORDER.map((d) => (
+          <div key={d} className={`text-[11px] py-1 ${dowClass(d) || "text-muted-foreground"}`}>
+            {WD[d]}
           </div>
         ))}
 

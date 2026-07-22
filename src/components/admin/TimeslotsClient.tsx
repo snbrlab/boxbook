@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { WD } from "@/lib/dow";
 import { useRouter } from "next/navigation";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { AdminSlotCard } from "@/components/admin/AdminSlotCard";
 import { GenerateButton } from "@/components/admin/GenerateButton";
 
-const WD = ["일", "월", "화", "수", "목", "금", "토"];
+
 const fmtDay = (d: string) => `${d.slice(5, 7)}.${d.slice(8, 10)} (${WD[new Date(d + "T00:00:00Z").getUTCDay()]})`;
 
 type Person = { id: string; status: string; waiting_order: number | null; name: string; phone: string; isNew: boolean };

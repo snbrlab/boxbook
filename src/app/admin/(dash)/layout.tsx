@@ -7,6 +7,7 @@ const NAV = [
   { href: "/admin", label: "타임슬롯" },
   { href: "/admin/members", label: "회원" },
   { href: "/admin/schedule", label: "주간 시간표" },
+  { href: "/admin/stats", label: "대시보드" },
   { href: "/admin/settings", label: "설정" },
 ];
 

@@ -5,8 +5,9 @@ import { setRecurring } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { WD, DOW_ORDER, dowClass } from "@/lib/dow";
 
-const WD = ["일", "월", "화", "수", "목", "금", "토"];
+
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 06:00 ~ 23:00
 
 type Member = {
@@ -45,11 +46,11 @@ export function RecurringDialog({ member, onClose }: { member: Member | null; on
           <div className="space-y-1">
             <Label className="text-xs">요일</Label>
             <div className="flex gap-1">
-              {WD.map((w, i) => (
+              {DOW_ORDER.map((i) => (
                 <button type="button" key={i}
                   onClick={() => setDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i].sort()))}
-                  className={`w-9 h-9 rounded text-sm border ${days.includes(i) ? "bg-primary text-primary-foreground border-primary" : ""}`}>
-                  {w}
+                  className={`w-9 h-9 rounded text-sm border ${days.includes(i) ? "bg-primary text-primary-foreground border-primary" : dowClass(i)}`}>
+                  {WD[i]}
                 </button>
               ))}
             </div>

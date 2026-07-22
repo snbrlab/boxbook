@@ -220,6 +220,28 @@ export async function addTemplate(form: FormData) {
   return { ok: true, count: rows.length, skipped };
 }
 
+// 시간표 항목 수정: UPDATE로 덮어쓰지 않는다. 기존 로우를 닫고 새 값으로 새 로우를 만든다.
+// 이미 생성된 슬롯은 그대로 두고, 다음 슬롯 생성부터 새 값이 적용된다.
+export async function editTemplate(form: FormData) {
+  const sb = await db();
+  const id = String(form.get("template_id"));
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+
+  const { error: closeErr } = await sb
+    .from("slot_templates").update({ is_active: false, effective_until: today }).eq("id", id);
+  if (closeErr) return { error: closeErr.message };
+
+  const { error } = await sb.from("slot_templates").insert({
+    day_of_week: Number(form.get("day_of_week")),
+    start_time: String(form.get("start_time")),
+    coach_name: String(form.get("coach_name")).trim(),
+    capacity: Number(form.get("capacity")),
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/schedule");
+  return { ok: true };
+}
+
 // 시간표 항목 폐기: 덮어쓰지 않고 닫는다 (is_active=false + effective_until=오늘). 새 값은 addTemplate로.
 export async function closeTemplate(id: string) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
@@ -387,17 +409,40 @@ export async function bulkImportMembers(text: string) {
   return { added, failed };
 }
 
+// ── 공지사항 (이력) ───────────────────────────────────
+// 수정이 아니라 새 로우로 쌓는다. 지난 공지를 되짚을 수 있어야 한다.
+export async function addNotice(form: FormData) {
+  const body = String(form.get("body") ?? "").trim();
+  if (!body) return { error: "내용을 입력하세요." };
+  const { error } = await (await db()).from("notices").insert({ body });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+// 내리기/올리기 — 지우지 않고 노출만 끈다
+export async function toggleNotice(id: string, is_active: boolean) {
+  const { error } = await (await db()).from("notices").update({ is_active }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+export async function deleteNotice(id: string) {
+  const { error } = await (await db()).from("notices").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
 // ── 설정 ──────────────────────────────────────────────
 export async function saveSettings(form: FormData) {
   const sb = await db();
-  const notice = String(form.get("notice_text") ?? "").trim();
   await sb.from("gym_settings").update({
     penalty_enabled: form.get("penalty_enabled") === "on",
     penalty_hours: Number(form.get("penalty_hours")),
     noshow_counts: form.get("noshow_counts") === "on",
     rules_text: String(form.get("rules_text") ?? "") || null,
-    notice_text: notice || null,
-    notice_updated_at: notice ? new Date().toISOString() : null,
   }).eq("id", 1);
   revalidatePath("/admin/settings");
 }

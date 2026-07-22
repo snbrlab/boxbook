@@ -1,6 +1,7 @@
-import { adminSettings, adminList, adminHours } from "@/lib/admin-data";
+import { adminSettings, adminList, adminHours, adminNotices } from "@/lib/admin-data";
 import { AdminsCard } from "@/components/admin/AdminsCard";
 import { HoursCard } from "@/components/admin/HoursCard";
+import { NoticesCard } from "@/components/admin/NoticesCard";
 import { saveSettings } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function SettingsPage() {
-  const [s, { me, admins }, hours] = await Promise.all([adminSettings(), adminList(), adminHours()]);
+  const [s, { me, admins }, hours, notices] = await Promise.all([
+    adminSettings(), adminList(), adminHours(), adminNotices(),
+  ]);
   return (
     <div className="space-y-4">
     <Card className="max-w-md">
@@ -37,23 +40,6 @@ export default async function SettingsPage() {
           </label>
 
           <div className="space-y-1.5">
-            <Label htmlFor="nt">공지사항</Label>
-            <textarea
-              id="nt"
-              name="notice_text"
-              rows={3}
-              defaultValue={s.notice_text ?? ""}
-              placeholder="비워두면 회원 화면에 표시되지 않습니다."
-              className="w-full rounded-lg border bg-transparent p-2 text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              회원 예약 화면 상단에 배너로 표시됩니다.
-              {s.notice_updated_at &&
-                ` (최근 수정: ${new Date(s.notice_updated_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })})`}
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
             <Label htmlFor="rt">체육관 규정</Label>
             <textarea
               id="rt"
@@ -71,6 +57,7 @@ export default async function SettingsPage() {
       </CardContent>
     </Card>
 
+    <NoticesCard notices={notices} />
     <HoursCard hours={hours} />
     <AdminsCard me={me} admins={admins} />
     </div>

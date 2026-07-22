@@ -5,7 +5,10 @@ import { createMember, toggleMemberActive, updateMember } from "@/app/actions/ad
 import { SignaturePad } from "@/components/SignaturePad";
 import { RecurringDialog } from "@/components/admin/RecurringDialog";
 import { MembershipDialog } from "@/components/admin/MembershipDialog";
+import { BulkImportDialog } from "@/components/admin/BulkImportDialog";
+import { SignatureDialog } from "@/components/admin/SignatureDialog";
 import { Button } from "@/components/ui/button";
+import { WD } from "@/lib/dow";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +24,7 @@ type Member = {
   history: { id: string; start_date: string; end_date: string; weekly_limit: number; payment_memo: string | null }[];
 };
 
-const WD = ["일", "월", "화", "수", "목", "금", "토"];
+
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
 const plusMonths = (n: number) => {
@@ -37,11 +40,14 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
   const [editFor, setEditFor] = useState<Member | null>(null);
   const [viewSig, setViewSig] = useState<Member | null>(null);
   const [recurFor, setRecurFor] = useState<Member | null>(null);
+  const [signFor, setSignFor] = useState<Member | null>(null);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold">회원 ({members.length})</h1>
+        <div className="flex gap-1">
+        <BulkImportDialog />
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger render={<Button size="sm" />}>신규 등록</DialogTrigger>
           <DialogContent className="max-h-[90dvh] overflow-y-auto">
@@ -87,6 +93,7 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {members.map((m) => {
@@ -99,7 +106,11 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
                   <span className="font-semibold">{m.name}</span>
                   {m.isNew && <Badge variant="secondary" className="text-[10px]">신규</Badge>}
                   {!m.is_active && <Badge variant="outline" className="text-[10px]">비활성</Badge>}
-                  {!m.signature && <Badge variant="outline" className="text-[10px] text-amber-600">서명없음</Badge>}
+                  {!m.signature && (
+                    <button onClick={() => setSignFor(m)}>
+                      <Badge variant="outline" className="text-[10px] text-amber-600">서명받기</Badge>
+                    </button>
+                  )}
                   <span className="text-xs text-muted-foreground">{m.phone}</span>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -162,6 +173,8 @@ export function MembersClient({ members, rulesText }: { members: Member[]; rules
       <MembershipDialog member={extendFor} onClose={() => setExtendFor(null)} />
 
       <RecurringDialog member={recurFor} onClose={() => setRecurFor(null)} />
+
+      <SignatureDialog member={signFor} rulesText={rulesText} onClose={() => setSignFor(null)} />
 
       {/* 서명 보기 */}
       <Dialog open={!!viewSig} onOpenChange={(o) => !o && setViewSig(null)}>

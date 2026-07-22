@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { WD, DOW_ORDER, dowClass } from "@/lib/dow";
 
 type Props = {
   today: string;
@@ -21,9 +22,10 @@ type Props = {
   settings: { penalty_enabled: boolean; penalty_hours: number; notice_text: string | null; notice_updated_at: string | null };
   usage: { used: number; weekly_limit: number } | null;
   hours: { day_of_week: number; open_time: string | null; close_time: string | null; is_closed: boolean }[];
+  notices: { id: string; body: string; created_at: string }[];
 };
 
-const WD = ["일", "월", "화", "수", "목", "금", "토"];
+
 const fmtDay = (d: string) => `${d.slice(5, 7)}.${d.slice(8, 10)} (${WD[new Date(d + "T00:00:00Z").getUTCDay()]})`;
 const fmtTime = (t: string) => t.slice(0, 5);
 
@@ -82,11 +84,18 @@ export default function DashboardClient(p: Props) {
         </div>
       </header>
 
-      {p.settings.notice_text && (
+      {p.notices.length > 0 && (
         <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="py-3">
-            <div className="text-xs font-semibold text-primary mb-1">📢 공지사항</div>
-            <p className="text-sm whitespace-pre-wrap">{p.settings.notice_text}</p>
+          <CardContent className="py-3 space-y-2">
+            <div className="text-xs font-semibold text-primary">📢 공지사항</div>
+            {p.notices.map((n) => (
+              <div key={n.id}>
+                <p className="text-sm whitespace-pre-wrap">{n.body}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {new Date(n.created_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}
+                </p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -96,16 +105,16 @@ export default function DashboardClient(p: Props) {
           <CardContent className="py-3">
             <div className="text-xs font-semibold text-muted-foreground mb-1.5">🕒 운영시간</div>
             <div className="grid grid-cols-7 gap-1 text-center text-[11px]">
-              {p.hours.map((h) => (
-                <div key={h.day_of_week}>
-                  <div className={h.day_of_week === 0 ? "text-red-500" : h.day_of_week === 6 ? "text-blue-500" : ""}>
-                    {WD[h.day_of_week]}
+              {DOW_ORDER.map((d) => p.hours.find((x) => x.day_of_week === d)).filter(Boolean).map((h) => (
+                <div key={h!.day_of_week}>
+                  <div className={dowClass(h!.day_of_week)}>
+                    {WD[h!.day_of_week]}
                   </div>
                   <div className="text-muted-foreground mt-0.5 leading-tight">
-                    {h.is_closed || !h.open_time || !h.close_time ? (
+                    {h!.is_closed || !h!.open_time || !h!.close_time ? (
                       <span className="text-muted-foreground/60">휴무</span>
                     ) : (
-                      <>{fmtTime(h.open_time)}<br />{fmtTime(h.close_time)}</>
+                      <>{fmtTime(h!.open_time)}<br />{fmtTime(h!.close_time)}</>
                     )}
                   </div>
                 </div>

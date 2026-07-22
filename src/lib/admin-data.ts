@@ -93,6 +93,63 @@ export async function adminList() {
   return { me: user?.id ?? null, admins: (data ?? []) as { id: string; email: string; created_at: string }[] };
 }
 
+// 대시보드 통계. 기간 내 예약/출석/노쇼, 회원 현황, 시간대·요일별 인기도.
+export async function adminStats(from: string, to: string) {
+  const sb = await supabaseAdminSession();
+  const today = todayKST();
+
+  const [{ data: res }, { data: members }] = await Promise.all([
+    sb.from("reservations")
+      .select("status, member_id, slots!inner(date, start_time, is_open_gym)")
+      .gte("slots.date", from).lte("slots.date", to),
+    sb.from("members").select("id, name, is_active, created_at, membership_histories(start_date, end_date)"),
+  ]);
+
+  const rows = (res ?? []) as any[];
+  const counted = rows.filter((r) => ["reserved", "attended", "noshow"].includes(r.status));
+
+  const byHour = new Map<string, number>();
+  const byDow = new Map<number, number>();
+  const byMember = new Map<string, number>();
+  for (const r of counted) {
+    const h = String(r.slots.start_time).slice(0, 5);
+    byHour.set(h, (byHour.get(h) ?? 0) + 1);
+    byDow.set(new Date(r.slots.date + "T00:00:00Z").getUTCDay(), (byDow.get(new Date(r.slots.date + "T00:00:00Z").getUTCDay()) ?? 0) + 1);
+    byMember.set(r.member_id, (byMember.get(r.member_id) ?? 0) + 1);
+  }
+
+  const ms = (members ?? []) as any[];
+  const activeOf = (m: any) => (m.membership_histories ?? []).find((h: any) => h.start_date <= today && h.end_date >= today);
+  const nameOf = new Map(ms.map((m) => [m.id, m.name]));
+
+  const attended = rows.filter((r) => r.status === "attended").length;
+  const noshow = rows.filter((r) => r.status === "noshow").length;
+
+  return {
+    total: counted.length,
+    attended,
+    noshow,
+    cancelled: rows.filter((r) => r.status === "cancelled").length,
+    openGym: counted.filter((r) => r.slots.is_open_gym).length,
+    attendRate: attended + noshow > 0 ? Math.round((attended / (attended + noshow)) * 100) : null,
+    memberTotal: ms.length,
+    memberActive: ms.filter((m) => m.is_active).length,
+    withMembership: ms.filter(activeOf).length,
+    newMembers: ms.filter((m) => daysBetween(m.created_at.slice(0, 10), today) <= 30).length,
+    expiringSoon: ms.filter((m) => { const a = activeOf(m); return a && daysBetween(today, a.end_date) <= 7; }).map((m) => m.name),
+    byHour: [...byHour.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    byDow: Array.from({ length: 7 }, (_, d) => byDow.get(d) ?? 0),
+    topMembers: [...byMember.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([id, n]) => ({ name: nameOf.get(id) ?? "(탈퇴)", count: n })),
+  };
+}
+
+export async function adminNotices() {
+  const sb = await supabaseAdminSession();
+  const { data } = await sb.from("notices").select("*").order("created_at", { ascending: false });
+  return (data ?? []) as { id: string; body: string; is_active: boolean; created_at: string }[];
+}
+
 export async function adminHours() {
   const sb = await supabaseAdminSession();
   const { data } = await sb.from("gym_hours").select("*").order("day_of_week");

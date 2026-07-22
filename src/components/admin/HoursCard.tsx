@@ -4,8 +4,9 @@ import { toast } from "sonner";
 import { saveHours } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { WD, DOW_ORDER, dowClass } from "@/lib/dow";
 
-const WD = ["일", "월", "화", "수", "목", "금", "토"];
+
 type Hour = { day_of_week: number; open_time: string | null; close_time: string | null; is_closed: boolean };
 
 // 운영시간은 수업 시간표와 별개다. 요일별 개폐 시각만 관리한다.
@@ -25,11 +26,12 @@ export function HoursCard({ hours }: { hours: Hour[] }) {
           })}
           className="space-y-2"
         >
-          {WD.map((w, d) => {
+          {DOW_ORDER.map((d) => {
+            const w = WD[d];
             const h = byDay(d);
             return (
               <div key={d} className="flex items-center gap-2 text-sm">
-                <span className={`w-6 ${d === 0 ? "text-red-500" : d === 6 ? "text-blue-500" : ""}`}>{w}</span>
+                <span className={`w-6 ${dowClass(d)}`}>{w}</span>
                 <input type="time" name={`open_${d}`} defaultValue={h?.open_time?.slice(0, 5) ?? "06:00"}
                   className="rounded border bg-transparent px-2 py-1 text-sm" />
                 <span className="text-muted-foreground">~</span>

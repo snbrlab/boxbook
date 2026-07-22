@@ -54,6 +54,14 @@ export async function getMonthSlots(jwt: string, from: string, to: string): Prom
   });
 }
 
+// 활성 공지 (최신순)
+export async function getNotices(jwt: string) {
+  const sb = supabaseAsMember(jwt);
+  const { data } = await sb.from("notices").select("id, body, created_at")
+    .eq("is_active", true).order("created_at", { ascending: false });
+  return (data ?? []) as { id: string; body: string; created_at: string }[];
+}
+
 // 운영시간 (요일별)
 export async function getHours(jwt: string) {
   const sb = supabaseAsMember(jwt);
