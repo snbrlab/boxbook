@@ -86,17 +86,21 @@ export async function setAttendance(reservationId: string, status: "attended" | 
 }
 
 // ── 주간 시간표 (slot_templates) ────────────────────────
+// 요일 다중 선택 지원: 선택한 요일 수만큼 로우를 만든다 (월/수/금 같은 시간대를 한 번에)
 export async function addTemplate(form: FormData) {
-  const sb = await db();
-  const { error } = await sb.from("slot_templates").insert({
-    day_of_week: Number(form.get("day_of_week")),
+  const days = form.getAll("day_of_week").map(Number).filter((d) => d >= 0 && d <= 6);
+  if (days.length === 0) return { error: "요일을 하나 이상 선택하세요." };
+
+  const base = {
     start_time: String(form.get("start_time")),
     coach_name: String(form.get("coach_name")).trim(),
     capacity: Number(form.get("capacity")),
-  });
+  };
+  const sb = await db();
+  const { error } = await sb.from("slot_templates").insert(days.map((d) => ({ ...base, day_of_week: d })));
   if (error) return { error: error.message };
   revalidatePath("/admin/schedule");
-  return { ok: true };
+  return { ok: true, count: days.length };
 }
 
 // 시간표 항목 폐기: 덮어쓰지 않고 닫는다 (is_active=false + effective_until=오늘). 새 값은 addTemplate로.

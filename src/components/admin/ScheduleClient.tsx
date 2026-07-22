@@ -13,7 +13,9 @@ const WD = ["일", "월", "화", "수", "목", "금", "토"];
 
 export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed: Closed[] }) {
   const [busy, start] = useTransition();
-  const [day, setDay] = useState(1);
+  const [days, setDays] = useState<number[]>([1]);
+  const toggleDay = (i: number) =>
+    setDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i].sort()));
 
   return (
     <div className="space-y-6">
@@ -31,26 +33,32 @@ export function ScheduleClient({ templates, closed }: { templates: Tpl[]; closed
             action={(fd) => start(async () => {
               const r = await addTemplate(fd);
               if (r?.error) return void toast.error(r.error);
-              toast.success("추가되었습니다.");
+              toast.success(`${r.count}개 요일에 추가되었습니다.`);
             })}
             className="flex flex-wrap gap-2 items-end"
           >
             <div className="space-y-1">
-              <Label className="text-xs">요일</Label>
+              <Label className="text-xs">요일 (여러 개 선택 가능)</Label>
               <div className="flex gap-1">
                 {WD.map((w, i) => (
-                  <button type="button" key={i} onClick={() => setDay(i)}
-                    className={`w-8 h-9 rounded text-sm border ${day === i ? "bg-primary text-primary-foreground" : ""}`}>
+                  <button type="button" key={i} onClick={() => toggleDay(i)}
+                    aria-pressed={days.includes(i)}
+                    className={`w-8 h-9 rounded text-sm border ${days.includes(i) ? "bg-primary text-primary-foreground border-primary" : ""}`}>
                     {w}
                   </button>
                 ))}
               </div>
-              <input type="hidden" name="day_of_week" value={day} />
+              {/* 선택한 요일마다 hidden input → 서버에서 getAll로 받는다 */}
+              {days.map((d) => (
+                <input key={d} type="hidden" name="day_of_week" value={d} />
+              ))}
             </div>
             <div className="space-y-1"><Label className="text-xs">시간</Label><Input type="time" name="start_time" required className="w-28" /></div>
             <div className="space-y-1"><Label className="text-xs">코치</Label><Input name="coach_name" required className="w-24" /></div>
             <div className="space-y-1"><Label className="text-xs">정원</Label><Input type="number" name="capacity" min={1} defaultValue={6} required className="w-20" /></div>
-            <Button type="submit" disabled={busy}>추가</Button>
+            <Button type="submit" disabled={busy || days.length === 0}>
+              추가{days.length > 1 ? ` (${days.length}개 요일)` : ""}
+            </Button>
           </form>
         </CardContent>
       </Card>
