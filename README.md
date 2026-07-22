@@ -14,11 +14,12 @@
 supabase/migrations/   0001 스키마 · 0002 RLS/집계/realtime · 0003 RPC · 0004 관리자 RLS
                        0005 GRANT · 0006 서명/규정 · 0007 고정수업/사용량 · 0008 기간집계
                        0009 자율운동/공지 · 0010 슬롯취소·자율운동 제외 · 0011 운영시간/셀프출석
-                       0012 공지 이력
+                       0012 공지 이력 · 0013 취소 범위(이 수업만/이 날/앞으로)
 supabase/tests/        rpc_checklist.sql (엣지케이스 검증), local_shim.sql (로컬 Postgres용 Supabase 심)
 src/lib/               auth(회원 JWT), supabase clients, kst, dow, member/admin 데이터
 src/app/               / (회원) · /login · /admin/{,members,schedule,stats,settings} · /api/cron/*
 src/app/actions/       member.ts, admin.ts (Server Actions)
+docs/                  관장님_한장요약.md, 관장님_사용설명서.md (비개발자용)
 ```
 
 ## 기능
@@ -28,7 +29,8 @@ src/app/actions/       member.ts, admin.ts (Server Actions)
 
 **관리자** — 타임슬롯 명단(실명·전화)·출석 체크, 회원 등록(이용권+규정 서명 동시)·일괄 등록,
 이용권 이력 관리, 고정 수업(정기 예약), 주간 시간표(요일×시간 다중), 휴관일,
-자율운동 전환, 슬롯 취소·복구, 공지사항 이력, 요일별 운영시간, 관리자 계정 관리, 통계 대시보드
+자율운동 전환, 슬롯 취소(이 수업만/이 날/앞으로 계속)·복구, 공지사항 이력, 요일별 운영시간,
+관리자 계정 관리, 통계 대시보드, 코치별 보기
 
 ## 규칙 요약
 
@@ -39,7 +41,9 @@ src/app/actions/       member.ts, admin.ts (Server Actions)
 | 정원 초과 | 자동 대기 등록, 앞사람 취소 시 자동 승격 |
 | 취소 마감 | 수업 시작 N시간 전부터 불가 (KST 기준, 설정에서 조절) |
 | 고정 수업 | 슬롯 생성 시 자동 예약. 위 규칙을 그대로 통과해야 함 |
-| 슬롯 삭제 | 행을 남기고 취소 표시 — 안 그러면 다음 생성 때 되살아남 |
+| 슬롯 취소 | 행을 남기고 취소 표시 — 안 그러면 다음 생성 때 되살아남 |
+| 취소 범위 | `이 수업만` / `이 날 전체` / `앞으로 계속`(시간표 항목까지 폐기) |
+| 시간표 일괄 변경 | 코치 단위 sync — 선택 요일의 시간표를 선택값과 일치시킴 |
 | 시간표·이용권 변경 | 덮어쓰지 않고 새 로우로 (이력 보존) |
 
 ## 로컬 RPC 검증 (UI 없이)
@@ -91,9 +95,11 @@ psql -d gym -f supabase/tests/rpc_checklist.sql       # PASS/FAIL 출력
 - 테마: 라이트/다크 **토글**
 - 관리자 인증: Supabase Auth **이메일 로그인**
 
-## 남은 일
+## 문서
 
-보안 항목을 포함한 백로그는 [PLAN.md](PLAN.md) 참고. **운영 시작 전 PLAN.md의 🔴 항목을 처리할 것.**
+- [docs/관장님_한장요약.md](docs/관장님_한장요약.md) — A4 한 장. 매일 쓰는 것만
+- [docs/관장님_사용설명서.md](docs/관장님_사용설명서.md) — Notion에 붙여 쓰는 전체 설명서
+- [PLAN.md](PLAN.md) — 남은 일. **운영 시작 전 🔴 항목을 처리할 것**
 
 ## 개발하며 겪은 함정
 
@@ -107,3 +113,7 @@ psql -d gym -f supabase/tests/rpc_checklist.sql       # PASS/FAIL 출력
 - **슬롯을 지우면 되살아난다** — `generate_slots`가 빈 자리를 다시 채운다. 행을 남기고 취소 표시.
 - **로컬 Postgres 검증의 한계** — 슈퍼유저로 테스트하면 RLS/GRANT를 안 거친다.
   권한 관련 문제는 실제 Supabase에서만 드러난다.
+- **통계 기간에 미래를 넣을 것** — 예약은 대부분 앞으로의 날짜다. 과거 30일만 집계하면
+  실제 예약 현황과 안 맞는다.
+- **반복 일정은 원래 어렵다** — 템플릿(규칙)과 슬롯(실체)을 분리하고, 취소는 soft delete,
+  변경은 effective_from/until로 기간을 끊는다. 캘린더 앱들이 쓰는 방식과 같다.
