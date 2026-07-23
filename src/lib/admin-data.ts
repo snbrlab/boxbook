@@ -96,7 +96,7 @@ export async function adminList() {
   const sb = await supabaseAdminSession();
   const [{ data: { user } }, { data }] = await Promise.all([
     sb.auth.getUser(),
-    sb.from("admins").select("id, email, created_at").order("created_at"),
+    sb.from("admins").select("id, email, created_at").eq("is_super", false).order("created_at"),
   ]);
   return { me: user?.id ?? null, admins: (data ?? []) as { id: string; email: string; created_at: string }[] };
 }

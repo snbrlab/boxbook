@@ -15,7 +15,7 @@ supabase/migrations/   0001 스키마 · 0002 RLS/집계/realtime · 0003 RPC ·
                        0005 GRANT · 0006 서명/규정 · 0007 고정수업/사용량 · 0008 기간집계
                        0009 자율운동/공지 · 0010 슬롯취소·자율운동 제외 · 0011 운영시간/셀프출석
                        0012 공지 이력 · 0013 취소 범위 · 0014 함수 GRANT 보정
-                       0015 관리자 대리예약(보강) · 0016 회원 일괄예약
+                       0015 관리자 대리예약(보강) · 0016 회원 일괄예약 · 0017 슈퍼어드민
 supabase/tests/        rpc_checklist.sql (엣지케이스 검증), local_shim.sql (로컬 Postgres용 Supabase 심)
 src/lib/               auth(회원 JWT), supabase clients, kst, dow, member/admin 데이터
 src/app/               / (회원) · /login · /admin/{,members,schedule,stats,settings} · /api/cron/*
@@ -46,6 +46,7 @@ docs/                  관장님_한장요약.md, 관장님_사용설명서.md (
 | 슬롯 취소 | 행을 남기고 취소 표시 — 안 그러면 다음 생성 때 되살아남 |
 | 취소 범위 | `이 수업만` / `이 날 전체` / `앞으로 계속`(시간표 항목까지 폐기) |
 | 시간표 일괄 변경 | 코치 단위 sync — 선택 요일의 시간표를 선택값과 일치시킴 |
+| 슈퍼어드민 | 관리자 목록에서 숨겨지고 삭제 불가. RLS + DB 트리거로 이중 차단 |
 | 시간표·이용권 변경 | 덮어쓰지 않고 새 로우로 (이력 보존) |
 
 ## 로컬 RPC 검증 (UI 없이)
@@ -75,6 +76,13 @@ psql -d gym -f supabase/tests/rpc_checklist.sql       # PASS/FAIL 출력
    ```sql
    insert into admins (id, email)
    select id, email from auth.users where email = '관장@example.com';
+   ```
+   **슈퍼어드민 지정** (권장) — 관리자 화면에 안 보이고 삭제도 안 되는 계정.
+   운영자가 실수로 관리자를 전부 지워도 들어갈 수 있는 뒷문이다. 개발자 계정을 이걸로 둔다.
+   ```sql
+   alter table admins disable trigger trg_protect_super_flag;
+   update admins set is_super = true where email = '개발자@example.com';
+   alter table admins enable trigger trg_protect_super_flag;
    ```
 4. Vercel에 배포 + 환경변수 등록. `CRON_SECRET`은 Vercel이 Cron 호출 시 Authorization Bearer로 자동 첨부한다.
 5. `vercel.json`의 Cron이 주 1회 `generate_slots` + `auto_reserve_recurring` 실행 → 항상 한 달 앞까지 확보.

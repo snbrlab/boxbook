@@ -445,10 +445,16 @@ export async function removeAdmin(id: string) {
   if (id === me) return { error: "본인 계정은 삭제할 수 없습니다." };
 
   const svc = supabaseService();
-  const { count } = await svc.from("admins").select("id", { count: "exact", head: true });
+  // 슈퍼어드민을 제외하고 센다 — 슈퍼어드민은 화면에 없으므로 관장님 입장에선 '남은 관리자'가 아니다
+  const { count } = await svc.from("admins").select("id", { count: "exact", head: true }).eq("is_super", false);
   if ((count ?? 0) <= 1) return { error: "마지막 관리자는 삭제할 수 없습니다." };
 
-  await svc.from("admins").delete().eq("id", id);
+  const { error } = await svc.from("admins").delete().eq("id", id);
+  if (error) {
+    // DB 트리거가 막은 경우 (슈퍼어드민)
+    if (error.message.includes("SUPER_ADMIN_PROTECTED")) return { error: "삭제할 수 없는 계정입니다." };
+    return { error: error.message };
+  }
   await svc.auth.admin.deleteUser(id);
   revalidatePath("/admin/settings");
   return { ok: true };
@@ -548,6 +554,7 @@ export async function downloadBackup() {
     return { ok: false as const, error: (e as Error).message };
   }
 }
+
 
 // ── 설정 ──────────────────────────────────────────────
 export async function saveSettings(form: FormData) {
